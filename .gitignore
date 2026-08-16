@@ -1,0 +1,7 @@
+node_modules/
+*.tsbuildinfo
+dist/
+lib/
+.DS_Store
+research/
+.research/

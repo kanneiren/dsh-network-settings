@@ -1,0 +1,5 @@
+# dsh-network-settings bundle patch: mounts the dual-face plugin.
+# Installed with `dsh plugin --profile web add dsh-network-settings`.
+- insert:
+    - id: dsh-network-settings
+      name: dsh-network-settings
