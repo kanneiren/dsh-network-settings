@@ -33,6 +33,26 @@ export function Tooltip({ children }: { children?: ReactNode }): JSX.Element {
   return <>{children}</>
 }
 
+export function Pill({ children, active, onClick }: { children?: ReactNode; active?: boolean; onClick?: () => void }): JSX.Element {
+  return <span data-active={active === true ? 'true' : undefined} onClick={onClick}>{children}</span>
+}
+
+export function Menu({ open, anchor, items, onSelect }: {
+  open: boolean
+  anchor: ReactNode
+  items: readonly { id: string; label: ReactNode }[]
+  selectedId?: string
+  onSelect: (id: string) => void
+  onClose: () => void
+}): JSX.Element {
+  return (
+    <span>
+      {anchor}
+      {open ? <div role="menu">{items.map(item => <button type="button" key={item.id} onClick={() => { onSelect(item.id) }}>{item.label}</button>)}</div> : null}
+    </span>
+  )
+}
+
 export async function writeClipboard(_text: string): Promise<void> {}
 
 export function IconGlobeOutline14({ size }: { size?: number }): JSX.Element {

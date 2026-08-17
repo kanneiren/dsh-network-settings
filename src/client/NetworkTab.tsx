@@ -3,18 +3,21 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import {
   Button, DisclosureRow, IconCheckOutline16, IconGlobeOutline14, IconRefreshOutline16,
-  IconWarningOutline16, StateDot, writeClipboard,
+  IconWarningOutline16, Menu, StateDot, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  Diagnosis, DiagnosisReport, LayeredProbe, NetworkInspection, NetworkStatus, WslDistribution, WslInspection,
+  Diagnosis, DiagnosisReport, LayeredProbe, NetworkInspection, NetworkPathGraph,
+  NetworkPathSummary, NetworkStatus, NetworkTarget, WslDistribution, WslInspection,
 } from './contract.ts'
+import { NetworkGraph } from './NetworkGraph.tsx'
 import type { NetworkService } from './service.ts'
 import type { NetworkLocaleKey } from './locales.ts'
 import { buildDiagnosticReport } from './report.ts'
-import { ConfigureSection } from './ConfigureSection.tsx'
+import { NetworkConfig } from './NetworkConfig.tsx'
 import { RepairSection } from './RepairSection.tsx'
 import css from './NetworkTab.module.css'
+import graphCss from './NetworkGraph.module.css'
 
 type T = (key: NetworkLocaleKey, params?: Record<string, string | number>) => string
 
@@ -142,21 +145,40 @@ function formatTime(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString()
 }
 
+function truncate(text: string, limit = 120): string {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  return normalized.length <= limit ? normalized : `${normalized.slice(0, limit)}…`
+}
+
+function firstFailedLayer(probe: LayeredProbe): { layer: 'dns' | 'tcp' | 'tls' | 'http'; message: string; status: NetworkStatus } | undefined {
+  for (const layer of ['dns', 'tcp', 'tls', 'http'] as const) {
+    const check = probe.layers[layer]
+    if (check === undefined) continue
+    if (check.status === 'error' || check.status === 'warning') {
+      return { layer, message: truncate(check.technicalMessage ?? check.humanMessage), status: check.status }
+    }
+  }
+  return undefined
+}
+
 function ProbeDetails({ probes, t }: { probes: LayeredProbe[]; t: T }): ReactNode {
   return (
     <div className={css.detailList}>
-      {probes.map(probe => (
-        <div key={`${probe.target.id}:${probe.path}`} className={css.detailRow}>
-          <span className={css.detailName}>{probe.target.label} · {probe.path}</span>
-          <span className={css.detailMeta}>
-            {(['dns', 'tcp', 'tls', 'http'] as const).map(layer => {
-              const check = probe.layers[layer]
-              if (check === undefined) return null
-              return <span key={layer} className={css.layer}>{layer.toUpperCase()} {statusLabel(check.status, t)}{check.technicalMessage === undefined ? '' : ` · ${check.technicalMessage}`}</span>
-            })}
-          </span>
-        </div>
-      ))}
+      {probes.map(probe => {
+        const failed = firstFailedLayer(probe)
+        if (failed === undefined) return (
+          <div key={`${probe.target.id}:${probe.path}`} className={css.detailRow}>
+            <span className={css.detailName}>{probe.target.label} · {probe.path}</span>
+            <span className={css.detailMeta}>{t('probeAllHealthy')}</span>
+          </div>
+        )
+        return (
+          <div key={`${probe.target.id}:${probe.path}`} className={css.detailRow}>
+            <span className={css.detailName}>{probe.target.label} · {probe.path}</span>
+            <span className={css.detailMeta}>{failed.layer.toUpperCase()} {statusLabel(failed.status, t)} · {failed.message}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -227,6 +249,7 @@ function DiagnosisDetails({ diagnoses, t }: { diagnoses: Diagnosis[]; t: T }): R
 export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
   const state = useSyncExternalStore(listener => service.subscribe(listener), () => service.getSnapshot())
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [targetMenuOpen, setTargetMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -239,28 +262,16 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
 
   const diagnosis = state.diagnosis
   const report: DiagnosisReport = diagnosis ?? { diagnoses: [], worst: 'healthy', problemCount: 0 }
-  const overall: NetworkStatus = state.phase === 'loading'
-    ? 'unknown'
-    : state.inspection === undefined
-      ? 'not-tested'
-      : report.worst === 'error'
-        ? 'error'
-        : report.worst === 'warning'
-          ? 'warning'
-          : 'healthy'
-
-  const summary = overall === 'not-tested'
-    ? t('notTested')
-    : overall === 'healthy'
-      ? t('healthy')
-      : overall === 'error'
-        ? t('error')
-        : t('warning', { count: report.problemCount })
+  const phase = state.phase
+  const graph = state.graph
+  const summary = state.summary ?? state.cached?.summary
+  const targets = state.targets ?? (summary === undefined ? [] : [summary.target])
+  const selectedTarget = summary?.target
 
   const onCopy = async (): Promise<void> => {
     if (state.inspection === undefined) return
     try {
-      await writeClipboard(buildDiagnosticReport(state.inspection, report, t))
+      await writeClipboard(buildDiagnosticReport(state.inspection, report, t, graph, summary))
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1500)
     } catch {
@@ -268,50 +279,91 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
     }
   }
 
+  const run = (targetId?: string): void => {
+    setTargetMenuOpen(false)
+    void (targetId === undefined ? service.run() : service.runTarget(targetId))
+  }
+
   return (
     <div className={css.section}>
       <h2 className={css.title}>{t('title')}</h2>
       <p className={css.intro}>{t('intro')}</p>
 
-      <div className={css.summaryCard}>
-        <div className={css.summaryHead}>
-          {dotState(overall) === undefined ? null : <StateDot state={dotState(overall)!} className={css.dot} />}
-          <span className={css.summaryText}>{summary}</span>
-        </div>
-        {rowGroupsFrom(state.inspection, report, t).map(group => (
-          <div key={group.key} className={css.rowGroup}>
-            <div className={css.groupLabel}>{group.label}</div>
-            {group.rows.map(row => (
-              <div key={row.key} className={css.statusRow}>
-                {dotState(row.status) === undefined ? null : <StateDot state={dotState(row.status)!} className={css.dot} />}
-                <div className={css.rowBody}>
-                  <span className={css.rowLabel}>{row.label}</span>
-                  {row.detail === undefined ? null : <span className={css.rowDetail}>{row.detail}</span>}
-                </div>
-                <span className={css.rowStatus}>{statusLabel(row.status, t)}</span>
-              </div>
-            ))}
+      {summary === undefined && state.phase !== 'loading' ? (
+        <div className={css.summaryCard}>
+          <div className={css.summaryHead}>
+            {phase === 'error' ? <StateDot state="error" className={css.dot} /> : null}
+            <span className={css.summaryText}>{phase === 'error' ? t('error') : t('notTested')}</span>
           </div>
-        ))}
-
-        <div className={css.actions}>
-          <Button
-            variant="primary"
-            disabled={state.phase === 'loading'}
-            icon={state.phase === 'loading' ? undefined : <IconRefreshOutline16 size={16} />}
-            onClick={() => { void service.run() }}
-          >
-            {state.phase === 'loading' ? t('running') : t('run')}
-          </Button>
-          {state.phase === 'loading' ? <Button variant="ghost" onClick={() => { service.cancel() }}>{t('cancel')}</Button> : null}
-          {state.inspection === undefined ? null : <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyReport')}</Button>}
+          <p className={css.muted}>{t('standbyHint')}</p>
+          <div className={css.actions}>
+            <Button
+              variant="primary"
+              disabled={phase === 'loading'}
+              icon={phase === 'loading' ? undefined : <IconRefreshOutline16 size={16} />}
+              onClick={() => { run(selectedTarget?.id) }}
+            >
+              {phase === 'loading' ? t('running') : t('run')}
+            </Button>
+            {phase === 'loading' ? <Button variant="ghost" onClick={() => { service.cancel() }}>{t('cancel')}</Button> : null}
+          </div>
+          {state.error === undefined ? null : <p className={css.errorText} role="alert">{state.error}</p>}
         </div>
-        {state.error === undefined ? null : <p className={css.errorText} role="alert">{state.error}</p>}
-        {state.cancelled === true ? <p className={css.muted}>{t('cancel')}</p> : null}
-      </div>
+      ) : null}
 
-      {report.diagnoses.length === 0 ? null : <RepairSection service={service} diagnoses={report.diagnoses} inspection={state.inspection} t={t} />}
-      {state.inspection === undefined ? null : <ConfigureSection inspection={state.inspection} t={t} />}
+      {summary !== undefined && graph === undefined && state.phase !== 'loading' ? (
+        <div className={css.summaryCard}>
+          <div className={css.summaryHead}><span className={css.summaryText}>{t('networkGraphTitle')}</span><span className={css.muted}>{t('cached', { time: formatTime(state.cached?.timestamp ?? '') })}</span></div>
+          <div className={css.statusRow}><StateDot state={dotState(summary.dsh.status) ?? 'ongoing'} className={css.dot} /><span className={css.rowLabel}>{summary.dsh.label}</span><span className={css.rowStatus}>{statusLabel(summary.dsh.status, t)}</span></div>
+          <div className={css.actions}>
+            <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(summary.target.id) }}>{t('run')}</Button>
+            <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(summary.target.id) }}>{t('runStability')}</Button>
+            {state.inspection === undefined ? null : <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button>}
+          </div>
+        </div>
+      ) : null}
+
+      {phase === 'loading' ? (
+        <div className={css.summaryCard}>
+          <div className={css.summaryHead}><StateDot state="ongoing" className={css.dot} /><span className={css.summaryText}>{t('running')}</span></div>
+          <div className={css.actions}><Button variant="ghost" onClick={() => { service.cancel() }}>{t('cancel')}</Button></div>
+        </div>
+      ) : null}
+
+      {graph === undefined ? <NetworkConfig service={service} inspection={state.inspection} diagnosis={report} graph={undefined} t={t} /> : null}
+
+      {graph !== undefined && summary !== undefined ? (
+        <>
+          <div className={graphCss.targetBar}>
+            <span className={graphCss.targetLabel}>{t('currentTarget')}</span>
+            <Menu
+              open={targetMenuOpen}
+              onClose={() => { setTargetMenuOpen(false) }}
+              onSelect={(id) => { run(id) }}
+              selectedId={summary.target.id}
+              items={targets.map(target => ({ id: target.id, label: `${target.label} · ${target.display}` }))}
+              anchor={(
+                <Button variant="outline" size="sm" onClick={() => { setTargetMenuOpen(previous => !previous) }}>
+                  {summary.target.label} · {summary.target.display}
+                </Button>
+              )}
+            />
+          </div>
+          <div className={css.actions}>
+            <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(summary.target.id) }}>{t('run')}</Button>
+            <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(summary.target.id) }}>{t('runStability')}</Button>
+            {state.inspection === undefined ? null : <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button>}
+          </div>
+          <NetworkGraph graph={graph} summary={summary} t={t} />
+          {state.inspection === undefined ? null : <NetworkConfig service={service} inspection={state.inspection} diagnosis={report} graph={graph} t={t} />}
+          <div id="dsh-network-repair-section">
+            {report.diagnoses.length === 0 ? null : <RepairSection service={service} diagnoses={report.diagnoses} inspection={state.inspection} t={t} />}
+          </div>
+        </>
+      ) : null}
+
+      {state.error !== undefined && summary !== undefined ? <p className={css.errorText} role="alert">{state.error}</p> : null}
+      {state.cancelled === true ? <p className={css.muted}>{t('cancel')}</p> : null}
 
       {state.inspection === undefined && state.cached === undefined ? null : (
         <div className={css.disclosureList}>
@@ -325,61 +377,6 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
           >
             <DiagnosisDetails diagnoses={report.diagnoses} t={t} />
           </DisclosureRow>
-          {state.inspection === undefined ? null : (
-            <DisclosureRow
-              icon={<IconGlobeOutline14 size={16} />}
-              title={t('windowsTitle')}
-              open={open['windows'] === true}
-              expandable
-              expandOnRowClick
-              onToggle={() => { toggle('windows') }}
-            >
-              <WindowsDetails inspection={state.inspection} t={t} />
-            </DisclosureRow>
-          )}
-          {state.inspection?.wsl === undefined ? null : (
-            <DisclosureRow
-              icon={<IconGlobeOutline14 size={16} />}
-              title={t('wslTitle')}
-              open={open['wsl'] === true}
-              expandable
-              expandOnRowClick
-              onToggle={() => { toggle('wsl') }}
-            >
-              <WslDetails wsl={state.inspection.wsl} t={t} />
-            </DisclosureRow>
-          )}
-          {state.inspection === undefined ? null : (
-            <DisclosureRow
-              icon={<IconGlobeOutline14 size={16} />}
-              title={t('proxyTitle')}
-              open={open['proxy'] === true}
-              expandable
-              expandOnRowClick
-              onToggle={() => { toggle('proxy') }}
-            >
-              <div className={css.detailList}>
-                {state.inspection.windows.proxy.endpoints.map(endpoint => (
-                  <div key={`${endpoint.source}:${endpoint.host}:${endpoint.port}`} className={css.detailRow}>
-                    <span className={css.detailName}>{endpoint.source}</span>
-                    <span className={css.detailMeta}>{endpoint.url}{endpoint.listener === undefined ? '' : ` · ${t('endpointListener')} ${endpoint.listener.processName} (${endpoint.listener.pid})`}</span>
-                  </div>
-                ))}
-              </div>
-            </DisclosureRow>
-          )}
-          {state.inspection === undefined ? null : (
-            <DisclosureRow
-              icon={<IconCheckOutline16 size={16} />}
-              title={t('probeTitle')}
-              open={open['probes'] === true}
-              expandable
-              expandOnRowClick
-              onToggle={() => { toggle('probes') }}
-            >
-              <ProbeDetails probes={state.inspection.probes} t={t} />
-            </DisclosureRow>
-          )}
         </div>
       )}
     </div>

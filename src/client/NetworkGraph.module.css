@@ -1,0 +1,399 @@
+/* Network path graph. Only --dsw-* semantic tokens are consumed. */
+
+.targetBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.targetLabel {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+}
+
+.statusCard,
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.summaryHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.summaryTitle {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.summaryRuntime {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+}
+
+.summaryRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryRow {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.summaryLabel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.summaryStatus {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.summaryConfidence {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.summaryMeta {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.comparisonText {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.problemBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding-top: 10px;
+}
+
+.failureCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--dsw-alias-state-error-primary);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.failureTitle {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.failurePath {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.failureMessage {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.failureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.failureDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding-top: 8px;
+}
+
+.failureDetailRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.repairNotice {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.laneHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.laneTitle {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dot {
+  flex: none;
+}
+
+.laneStatus {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+}
+
+.pathFlow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.flowSegment {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  min-width: 0;
+}
+
+.nodeStatus {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.node[data-status='healthy'] .nodeStatus { color: var(--dsw-alias-state-success-primary); }
+.node[data-status='warning'] .nodeStatus { color: var(--dsw-alias-state-warn-primary); }
+.node[data-status='error'] .nodeStatus { color: var(--dsw-alias-state-error-primary); }
+.node[data-status='unknown'] .nodeStatus { color: var(--dsw-alias-label-tertiary); }
+.node[data-status='error'] { border-color: var(--dsw-alias-state-error-primary); }
+
+.nodeBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.nodeLabel {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeSubtitle {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+  min-width: 0;
+}
+
+.connectorLine {
+  width: 2px;
+  height: 10px;
+  margin: 0 6px;
+  background: var(--dsw-alias-border-l3);
+}
+
+.connector[data-status='error'] .connectorLine { background: var(--dsw-alias-state-error-primary); }
+.connector[data-status='healthy'] .connectorLine { background: var(--dsw-alias-state-success-primary); }
+
+.connectorGlyph {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+.connector[data-status='error'] .connectorGlyph { color: var(--dsw-alias-state-error-primary); }
+.connector[data-status='healthy'] .connectorGlyph { color: var(--dsw-alias-state-success-primary); }
+
+.connectorLabel {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dnsBranch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px dashed var(--dsw-alias-border-l2);
+  padding-top: 6px;
+}
+
+.dnsRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.dnsGlyph {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.dnsText {
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.dnsStatus {
+  margin-left: auto;
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.detailList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.detailRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nodeDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  padding-top: 6px;
+}
+
+.detailName {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.detailMeta {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.diagnosticList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diagnosticRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.diagnosticGlyph {
+  flex: none;
+  width: 14px;
+  text-align: center;
+}
+
+.diagnosticRow[data-severity='error'] .diagnosticGlyph { color: var(--dsw-alias-state-error-primary); }
+.diagnosticRow[data-severity='warning'] .diagnosticGlyph { color: var(--dsw-alias-state-warn-primary); }
+.diagnosticRow[data-severity='info'] .diagnosticGlyph { color: var(--dsw-alias-label-tertiary); }
+
+.diagnosticText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

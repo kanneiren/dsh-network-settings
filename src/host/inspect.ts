@@ -1,5 +1,5 @@
 /** Read-only Network Core entry point (Phase 1). */
-import type { LayeredProbe, ListenerInspection, ModelServiceTarget, NetworkInspection, ProbeTarget, ProxyEndpoint, WslDistribution } from './model.ts'
+import type { EnvironmentScopeSnapshot, LayeredProbe, ListenerInspection, ModelServiceTarget, NetworkInspection, ProbeTarget, ProxyEndpoint, WslDistribution } from './model.ts'
 import { inspectWindowsFacts } from './windows/inspect.ts'
 import { inspectWsl } from './wsl/inspect.ts'
 import { endpointsFromInspection } from './proxy/inspect.ts'
@@ -12,11 +12,17 @@ export interface InspectNetworkOptions {
   timeoutMs?: number
   includeWsl?: boolean
   includeProbes?: boolean
-  targets?: ProbeTarget[]
+  targets?: readonly ProbeTarget[]
   modelServices?: ModelServiceTarget[]
+  /** Reuse previously collected static Windows/WSL facts; only probes re-run. */
+  reuse?: NetworkInspection
+  /** single = one attempt per layer; multi = repeated TCP/HTTP sampling. */
+  probePlan?: 'single' | 'multi'
 }
 
 export const DEFAULT_TARGETS: readonly ProbeTarget[] = [
+  { id: 'deepseek', label: 'DeepSeek', host: 'api.deepseek.com', port: 443, url: 'https://api.deepseek.com', kind: 'deepseek' },
+  { id: 'openai', label: 'OpenAI', host: 'api.openai.com', port: 443, url: 'https://api.openai.com', kind: 'openai' },
   { id: 'github', label: 'GitHub', host: 'github.com', port: 443, url: 'https://github.com', kind: 'github' },
   { id: 'npm-registry', label: 'npm Registry', host: 'registry.npmjs.org', port: 443, url: 'https://registry.npmjs.org', kind: 'npm' },
 ]
@@ -26,9 +32,11 @@ export async function inspectNetwork(options: InspectNetworkOptions = {}): Promi
   const timestamp = new Date().toISOString()
   const runtime = { platform: process.platform, version: process.version, ...process.env['DSH_HOME'] === undefined ? {} : { dshHome: process.env['DSH_HOME'] } }
 
-  const windows = await inspectWindowsFacts({ signal: options.signal, timeoutMs: options.timeoutMs ?? 20_000 })
+  const windows = options.reuse?.windows ?? await inspectWindowsFacts({ signal: options.signal, timeoutMs: options.timeoutMs ?? 20_000 })
   windows.modelServices = options.modelServices ?? windows.modelServices
-  const wsl = options.includeWsl === false ? undefined : await inspectWsl({ signal: options.signal, timeoutMs: options.timeoutMs ?? 20_000 })
+  const wsl = options.reuse !== undefined
+    ? options.reuse.wsl
+    : options.includeWsl === false ? undefined : await inspectWsl({ signal: options.signal, timeoutMs: options.timeoutMs ?? 20_000 })
 
   const endpoints = endpointsFromInspection(
     windows.proxy,
@@ -41,11 +49,16 @@ export async function inspectNetwork(options: InspectNetworkOptions = {}): Promi
   const probes: LayeredProbe[] = []
   if (options.includeProbes !== false) {
     const targets = [...(options.targets ?? DEFAULT_TARGETS), ...(options.modelServices ?? windows.modelServices).flatMap(modelTargets)]
-    const primary = primaryProxy(endpoints)
-    const directResults = await Promise.all(targets.map(async target => probeTarget(target, 'direct', { signal: options.signal })))
+    const directResults = await Promise.all(targets.map(async target => probeTarget(target, 'direct', { signal: options.signal, plan: options.probePlan ?? 'single' })))
     probes.push(...directResults)
-    if (primary !== undefined) {
-      probes.push(...await Promise.all(targets.map(async target => probeTarget(target, 'proxy', { proxy: primary, signal: options.signal }))))
+
+    // Probe the proxy the DSH process is actually configured to use, then the
+    // system primary proxy when it differs. Configuration drift depends on
+    // seeing the DSH endpoint fail/succeed independently of the system proxy.
+    const dshProxy = proxyFromEnvironmentSnapshot(windows.dshProcessEnvironment)
+    const primary = primaryProxy(endpoints)
+    for (const proxy of distinctProxies([dshProxy, primary])) {
+      probes.push(...await Promise.all(targets.map(async target => probeTarget(target, 'proxy', { proxy, signal: options.signal, plan: options.probePlan ?? 'single' }))))
     }
 
     if (wsl?.available === true) {
@@ -74,13 +87,17 @@ export async function inspectNetwork(options: InspectNetworkOptions = {}): Promi
             layers: { tcp },
           })
         }
-        if (primary !== undefined && distroEnv !== undefined) {
-          const distroProxy = firstWslProxy(distroEnv)
-          if (distroProxy !== undefined) {
-            const proxyTcp = await probeWslTcp(distribution.name, distroProxy.host, distroProxy.port, { signal: options.signal })
-            const proxyInternet = await probeWslProxyInternet(distribution.name, distroProxy.url, 'https://github.com', { signal: options.signal })
+        // In WSL the DSH process env is the authoritative current-DSH config;
+        // the distro-wide env is only a fallback for comparison.
+        const dshProxy = proxyFromEnvironmentSnapshot(windows.dshProcessEnvironment)
+        const distroProxy = distroEnv === undefined ? undefined : firstWslProxy(distroEnv)
+        const effectiveProxy = dshProxy ?? distroProxy
+        if (effectiveProxy !== undefined) {
+          for (const target of targets.slice(0, 2)) {
+            const proxyTcp = await probeWslTcp(distribution.name, effectiveProxy.host, effectiveProxy.port, { signal: options.signal })
+            const proxyInternet = await probeWslProxyInternet(distribution.name, effectiveProxy.url, target.url ?? `https://${target.host}`, { signal: options.signal })
             probes.push({
-              target: { id: `wsl:${distribution.name}:proxy-endpoint`, label: `${distribution.name} → Windows Proxy`, host: distroProxy.host, port: distroProxy.port, kind: 'wsl-proxy' },
+              target: { id: `wsl:${distribution.name}:proxy-endpoint`, label: `${distribution.name} → Windows Proxy`, host: effectiveProxy.host, port: effectiveProxy.port, kind: 'wsl-proxy' },
               path: 'proxy',
               layers: { tcp: proxyTcp, http: proxyInternet },
             })
@@ -107,6 +124,24 @@ function primaryProxy(endpoints: ProxyEndpoint[]): ProxyEndpoint | undefined {
     ?? endpoints.find(item => item.source === 'winhttp.user')
     ?? endpoints.find(item => item.source === 'env.process')
     ?? endpoints[0]
+}
+
+function proxyFromEnvironmentSnapshot(env: EnvironmentScopeSnapshot | Record<string, unknown> | undefined): ProxyEndpoint | undefined {
+  if (env === undefined) return undefined
+  return firstWslProxy(env as EnvironmentScopeSnapshot)
+}
+
+function distinctProxies(proxies: Array<ProxyEndpoint | undefined>): ProxyEndpoint[] {
+  const seen = new Set<string>()
+  const result: ProxyEndpoint[] = []
+  for (const proxy of proxies) {
+    if (proxy === undefined || proxy.host === '' || proxy.port === 0) continue
+    const key = `${proxy.host}:${proxy.port}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(proxy)
+  }
+  return result
 }
 
 function firstWslProxy(env: NonNullable<NonNullable<WslDistribution['network']>['environment']>): ProxyEndpoint | undefined {

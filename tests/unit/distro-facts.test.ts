@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseDistroFacts, parseWslStatus, parseWslVersion } from '../../src/host/wsl/inspect.ts'
+import { parseDistroFacts, parseWslLinuxInterfaces, parseWslStatus, parseWslVersion } from '../../src/host/wsl/inspect.ts'
 import { classifyInterface } from '../../src/host/windows/inspect.ts'
 
 const FACTS = `---CAPS---
@@ -52,6 +52,15 @@ describe('WSL distro probe parser', () => {
     const status = parseWslStatus('默认分发: docker-desktop\n默认版本: 2\n', [{ name: 'docker-desktop', state: 'stopped', wslVersion: 2, default: true }])
     assert.equal(status.defaultDistribution, 'docker-desktop')
     assert.equal(status.defaultVersion, 2)
+  })
+
+  it('parses Linux interface addresses from ip -o output and hostname fallback', () => {
+    const interfaces = parseWslLinuxInterfaces(`1: lo    inet 127.0.0.1/8 scope host lo
+2: eth0    inet 172.28.101.23/20 brd 172.28.111.255 scope global eth0
+2: eth0    inet6 fe80::215:5dff:fe34:f5a5/64 scope link`)
+    assert.equal(interfaces.length, 2)
+    assert.equal(interfaces.find(item => item.name === 'eth0')?.ipv4[0], '172.28.101.23')
+    assert.equal(parseWslLinuxInterfaces('172.30.98.229 10.0.0.2')[0]?.ipv4[0], '172.30.98.229')
   })
 
   it('classifies interface kinds from vendor descriptions, not localized names', () => {

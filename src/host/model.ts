@@ -41,7 +41,7 @@ export interface ProbeTarget {
   port?: number
   /** Optional absolute URL for HTTP probes. */
   url?: string
-  kind: 'internet' | 'github' | 'npm' | 'model-service' | 'windows-host' | 'wsl-proxy'
+  kind: 'internet' | 'deepseek' | 'openai' | 'github' | 'npm' | 'model-service' | 'windows-host' | 'wsl-proxy' | 'gateway'
 }
 
 export type ProxySource =
@@ -136,10 +136,17 @@ export interface WslDistribution {
   network?: WslNetworkInspection
 }
 
+export interface WslLinuxInterface {
+  name: string
+  ipv4: string[]
+  ipv6: string[]
+}
+
 export interface WslNetworkInspection {
   hostCandidates: HostCandidate[]
   resolvConf?: string[]
   defaultRoute?: string
+  interfaces?: WslLinuxInterface[]
   environment?: EnvironmentScopeSnapshot
   wslConf?: {
     network?: { generateResolvConf?: boolean; generateHosts?: boolean; hostname?: string }
@@ -160,6 +167,7 @@ export interface WindowsInterface {
   description: string
   status: 'up' | 'down' | 'unknown'
   virtual: boolean
+  interfaceIndex?: number
   mac?: string
   kind: 'wi-fi' | 'ethernet' | 'wsl' | 'hyper-v' | 'docker' | 'vpn' | 'tailscale' | 'vmware' | 'virtualbox' | 'bluetooth' | 'other'
   ipv4: string[]
@@ -172,6 +180,10 @@ export interface WindowsInterface {
 export interface WindowsNetworkInspection {
   interfaces: WindowsInterface[]
   defaultRoutes: { family: 4 | 6; destination: string; nextHop: string; interfaceIndex: number; metric?: number }[]
+  /** True when Windows answered an ICMP echo from the active default gateway. */
+  gatewayPing?: boolean
+  /** Get-NetNeighbor State for the active default gateway, e.g. Reachable. */
+  gatewayNeighborState?: string
 }
 
 export interface WinInetProxyInspection {

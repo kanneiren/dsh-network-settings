@@ -12,9 +12,11 @@ type T = (key: NetworkLocaleKey, params?: Record<string, string | number>) => st
 export interface AdvancedSectionProps {
   service: NetworkService
   t: T
+  /** Render without its own section heading (embedded in NetworkConfig). */
+  embedded?: boolean
 }
 
-export function AdvancedSection({ service, t }: AdvancedSectionProps): ReactNode {
+export function AdvancedSection({ service, t, embedded = false }: AdvancedSectionProps): ReactNode {
   const [actions, setActions] = useState<AdvancedAction[]>([])
   const [pending, setPending] = useState<AdvancedAction | null>(null)
   const [busy, setBusy] = useState(false)
@@ -48,7 +50,7 @@ export function AdvancedSection({ service, t }: AdvancedSectionProps): ReactNode
 
   return (
     <div className={css.configList}>
-      <h3 className={css.subtitle}>{t('advancedTitle')}</h3>
+      {embedded ? null : <h3 className={css.subtitle}>{t('advancedTitle')}</h3>}
       {actions.map(action => (
         <div key={action.id} className={css.configCard}>
           <div className={css.detailName}>{action.label}</div>

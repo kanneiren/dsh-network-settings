@@ -7,28 +7,37 @@ import type { NetworkLocaleKey } from '../../src/client/locales.ts'
 
 const zh: Record<NetworkLocaleKey, string> = {
   nav: '网络', title: '网络', intro: '查看 Windows、WSL 与 DSH 的网络状态，检测并定位常见网络问题。',
-  run: '一键全面检测', running: '检测中…', cancel: '取消', notTested: '尚未检测', healthy: '网络正常',
+  run: '单次检测', runStability: '稳定性检测', running: '检测中…', cancel: '取消', notTested: '尚未检测', healthy: '网络正常',
   warning: '发现 {count} 个问题', problemCount: '{count} 个问题', interfaceCount: '{count} 个网络接口', error: '网络有问题', cached: '最近一次检测：{time}', viewDetails: '查看详情',
   hideDetails: '收起详情', copyReport: '复制诊断报告', copied: '已复制诊断报告', windows: 'Windows', wsl: 'WSL',
   proxy: '代理', dns: 'DNS', internet: '互联网', modelService: 'DSH 模型服务', healthyLabel: '正常',
   warningLabel: '有问题', errorLabel: '异常', unknownLabel: '未知', notApplicableLabel: '不适用', notTestedLabel: '未检测',
   diagnosisTitle: '诊断结果', windowsTitle: 'Windows 详情', wslTitle: 'WSL 详情', proxyTitle: '代理详情',
-  probeTitle: '分层检测详情', noDiagnosis: '没有发现已知网络问题。', endpointConfigured: '已配置',
+  probeTitle: '分层检测详情', probeAllHealthy: '全部层级正常', noDiagnosis: '没有发现已知网络问题。', endpointConfigured: '已配置',
   endpointListener: '监听进程', scopeProcess: 'Process', scopeUser: 'User', scopeMachine: 'Machine', scopeDsh: 'DSH Process',
   mode: '网络模式', stateRunning: '运行中', stateStopped: '未运行', copyFailed: '复制失败',
   environmentGroup: '环境与配置', connectivityGroup: '连通性', direct: '直连', proxyPath: '代理',
+  conclusionHealthy: 'DSH 链路正常。', conclusionUnknown: 'DSH 链路状态未知。', conclusionProxyFailed: '代理端点 {label} 连接失败。', conclusionTargetFailedLocalOk: '目标 {label} 连接失败；本机到网关正常。', conclusionTargetFailed: '目标 {label} 连接失败。', conclusionEdgeFailed: '{label} 这一段失败。', interfaces: '网络接口',
+  standbyHint: '打开页面不会执行系统命令或网络探测；点击一键检测后才会显示完整链路。',
+  networkGraphTitle: '网络链路', currentTarget: '当前目标', problemAt: '问题出现在：', failureLayer: '失败层', failureMessage: '错误信息',
+  egressTarget: '出口：见下方链路 · 目标：{target}',
+  dnsDelegated: 'DNS 由代理侧解析',
+  detailPathStatus: '链路状态', detailEgress: '出口', detailProxyEndpoint: '代理端点', detailEvidence: 'Evidence',
 }
 
 const t = (key: NetworkLocaleKey, params?: Record<string, string | number>): string => {
-  const template = zh[key]
+  const template = zh[key] ?? key
   if (params === undefined) return template
-  return template.replaceAll('{count}', String(params.count ?? ''))
+  return template.replaceAll('{count}', String(params.count ?? '')).replaceAll('{mode}', String(params.mode ?? '')).replaceAll('{value}', String(params.value ?? ''))
 }
 
 class MockService implements NetworkService {
   listeners = new Set<() => void>()
   snapshot: NetworkServiceSnapshot
   runMock = vi.fn(async () => {})
+  runTargetMock = vi.fn(async (_id: string) => {})
+  runStabilityMock = vi.fn(async (_id?: string) => {})
+  runWithPlanMock = vi.fn(async (_plan: 'single' | 'multi', _id?: string) => {})
   refreshMock = vi.fn(async () => {})
   cancelMock = vi.fn(() => {})
   previewMock = vi.fn(async (_request: any) => ({ scope: 'windows.wininet', scopeDescription: 'only wininet', before: {}, after: {}, diff: [], diffText: [], requiresElevation: false }))
@@ -60,6 +69,9 @@ class MockService implements NetworkService {
   }
   refreshStatus(): Promise<void> { return this.refreshMock() }
   run(): Promise<void> { return this.runMock() }
+  runTarget(id: string): Promise<void> { return this.runTargetMock(id) }
+  runStability(id?: string): Promise<void> { return this.runStabilityMock(id) }
+  runWithPlan(plan: 'single' | 'multi', id?: string): Promise<void> { return this.runWithPlanMock(plan, id) }
   cancel(): void { this.cancelMock() }
   previewConfigure(request: any): Promise<any> { return this.previewMock(request) }
   applyConfigure(request: any): Promise<any> { return this.applyMock(request) }
@@ -105,7 +117,7 @@ describe('NetworkTab', () => {
     const service = new MockService({ phase: 'idle' })
     render(<NetworkTab service={service} t={t} />)
     expect(screen.getByText('尚未检测')).toBeTruthy()
-    expect(screen.getByText('一键全面检测')).toBeTruthy()
+    expect(screen.getByText('单次检测')).toBeTruthy()
   })
 
   it('renders loading and cancel actions', async () => {
@@ -132,9 +144,14 @@ describe('NetworkTab', () => {
           actions: [],
         }],
       },
+      summary: {
+        model: 'WINDOWS_NATIVE',
+        target: { id: 'github', label: 'GitHub', host: 'github.com', port: 443, url: 'https://github.com', kind: 'github', display: 'github.com:443' },
+        dsh: { status: 'error', label: 'DSH' }, problemCount: 1,
+      },
     })
     render(<NetworkTab service={service} t={t} />)
-    expect(screen.getByText('网络有问题')).toBeTruthy()
+    expect(screen.getByText('网络链路')).toBeTruthy()
     fireEvent.click(screen.getAllByText('诊断结果')[0]!)
     expect(screen.getByText('有 1 个目标的 TCP 连接正常，但 TLS 握手失败')).toBeTruthy()
     expect(screen.getByText(/Diagnostic Code: TLS_FAILURE/)).toBeTruthy()

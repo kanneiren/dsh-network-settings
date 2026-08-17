@@ -1,14 +1,17 @@
 /** Typed API service over DSH Connection's generic RPC channel. */
-import type { AdvancedAction, AdvancedRunResult, ConfigurePreview, ConfigureRequest, ConfigureResult, DiagnosisAction, DiagnosisReport, HostsDeletePreview, HostsDeleteResult, HostsEntry, NetworkInspection, RepairOperation, RepairOperationApply, RepairOperationPreview, RepairRecommendationsResult, RpcResult, RunResult, SnapshotRecord, StatusResult, WslProxyApplyResult, WslProxyPreview, WslProxySource } from './contract.ts'
+import type { AdvancedAction, AdvancedRunResult, ConfigurePreview, ConfigureRequest, ConfigureResult, DiagnosisAction, DiagnosisReport, HostsDeletePreview, HostsDeleteResult, HostsEntry, NetworkInspection, NetworkPathGraph, NetworkPathSummary, NetworkTarget, RepairOperation, RepairOperationApply, RepairOperationPreview, RepairRecommendationsResult, RpcResult, RunResult, SnapshotRecord, StatusResult, WslProxyApplyResult, WslProxyPreview, WslProxySource } from './contract.ts'
 
 const CHANNEL = '/dsh-network-settings'
 
 export interface NetworkServiceSnapshot {
   phase: 'idle' | 'loading' | 'ready' | 'error'
   /** Latest cached report from the host (page-open fast path). */
-  cached?: { timestamp: string; diagnosis: DiagnosisReport }
+  cached?: { timestamp: string; diagnosis: DiagnosisReport; summary?: NetworkPathSummary }
   inspection?: NetworkInspection
   diagnosis?: DiagnosisReport
+  graph?: NetworkPathGraph
+  summary?: NetworkPathSummary
+  targets?: NetworkTarget[]
   error?: string
   cancelled?: boolean
 }
@@ -17,7 +20,10 @@ export interface NetworkService {
   getSnapshot(): NetworkServiceSnapshot
   subscribe(listener: () => void): () => void
   refreshStatus(): Promise<void>
-  run(): Promise<void>
+  run(targetId?: string): Promise<void>
+  runTarget(targetId: string): Promise<void>
+  runStability(targetId?: string): Promise<void>
+  runWithPlan(plan: 'single' | 'multi', targetId?: string): Promise<void>
   cancel(): void
   previewConfigure(request: ConfigureRequest): Promise<ConfigurePreview | undefined>
   applyConfigure(request: ConfigureRequest): Promise<ConfigureResult | undefined>
@@ -35,6 +41,8 @@ export interface NetworkService {
   previewWslProxySource(source: WslProxySource): Promise<WslProxyPreview | undefined>
   applyWslProxySource(source: WslProxySource): Promise<WslProxyApplyResult | undefined>
   hostsEntries(): Promise<HostsEntry[]>
+  openWindowsProxySettings(): Promise<OpenLocationResult | undefined>
+  openConfigLocation(kind: 'wslconfig' | 'wsl-conf' | 'hosts', distribution?: string): Promise<OpenLocationResult | undefined>
   previewHostsDelete(entry: HostsEntry): Promise<HostsDeletePreview | undefined>
   applyHostsDelete(entry: HostsEntry): Promise<HostsDeleteResult | undefined>
 }
@@ -47,6 +55,11 @@ export interface RepairPreview {
 export interface RepairApply {
   supported: boolean
   result?: ConfigureResult
+}
+
+export interface OpenLocationResult {
+  opened: boolean
+  path: string
 }
 
 export interface RollbackResult {
@@ -83,14 +96,24 @@ export function createNetworkService(connection: ConnectionFace): NetworkService
       const result = await connection.rpc.call<StatusResult>(CHANNEL, 'status', {})
       if (!result.ok) return
       if (result.value.status === 'ready' && result.value.diagnosis !== undefined) {
-        publish({ phase: snapshot.phase === 'loading' ? snapshot.phase : 'ready', cached: { timestamp: result.value.timestamp, diagnosis: result.value.diagnosis } })
+        publish({
+          phase: snapshot.phase === 'loading' ? snapshot.phase : 'ready',
+          cached: { timestamp: result.value.timestamp, diagnosis: result.value.diagnosis, summary: result.value.summary },
+          targets: result.value.targets,
+        })
       }
     },
-    async run() {
+    async run(targetId?: string) {
+      return this.runWithPlan('single', targetId)
+    },
+    async runStability(targetId?: string) {
+      return this.runWithPlan('multi', targetId)
+    },
+    async runWithPlan(plan: 'single' | 'multi', targetId?: string) {
       controller?.abort()
       controller = new AbortController()
       publish({ phase: 'loading', error: undefined, cancelled: false })
-      const result = await connection.rpc.call<RunResult>(CHANNEL, 'run', { includeWsl: true }, controller.signal)
+      const result = await connection.rpc.call<RunResult>(CHANNEL, 'run', { includeWsl: true, probeMode: plan, ...targetId === undefined ? {} : { targetId } }, controller.signal)
       if (controller.signal.aborted) {
         publish({ phase: 'idle', cancelled: true })
         return
@@ -103,8 +126,14 @@ export function createNetworkService(connection: ConnectionFace): NetworkService
         phase: 'ready',
         inspection: result.value.inspection,
         diagnosis: result.value.diagnosis,
-        cached: { timestamp: result.value.timestamp, diagnosis: result.value.diagnosis },
+        graph: result.value.graph,
+        summary: result.value.summary,
+        targets: result.value.targets,
+        cached: { timestamp: result.value.timestamp, diagnosis: result.value.diagnosis, summary: result.value.summary },
       })
+    },
+    async runTarget(targetId: string) {
+      return this.run(targetId)
     },
     cancel() {
       controller?.abort()
@@ -173,6 +202,14 @@ export function createNetworkService(connection: ConnectionFace): NetworkService
     async hostsEntries() {
       const result = await connection.rpc.call<{ entries: HostsEntry[] }>(CHANNEL, 'hosts/entries', {})
       return result.ok ? result.value.entries : []
+    },
+    async openWindowsProxySettings() {
+      const result = await connection.rpc.call<OpenLocationResult>(CHANNEL, 'config/open-windows-proxy', {})
+      return result.ok ? result.value : undefined
+    },
+    async openConfigLocation(kind, distribution) {
+      const result = await connection.rpc.call<OpenLocationResult>(CHANNEL, 'config/open-location', { kind, ...distribution === undefined ? {} : { distribution } })
+      return result.ok ? result.value : undefined
     },
     async previewHostsDelete(entry) {
       const result = await connection.rpc.call<HostsDeletePreview>(CHANNEL, 'hosts/delete-preview', { entry })

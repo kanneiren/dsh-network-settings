@@ -27,6 +27,21 @@ declare module '@deepseek-ai/dsh-client-ui-primitives' {
     side?: 'right' | 'bottom' | 'top'
     children: ReactNode
   }): ReactNode
+  export function Pill(props: {
+    active?: boolean
+    className?: string
+    children?: ReactNode
+    onClick?: () => void
+  }): ReactNode
+  export interface MenuItem { id: string; label: ReactNode }
+  export function Menu(props: {
+    open: boolean
+    anchor: ReactNode
+    items: readonly MenuItem[]
+    selectedId?: string
+    onSelect: (id: string) => void
+    onClose: () => void
+  }): ReactNode
   export function writeClipboard(text: string): Promise<void>
   export const IconGlobeOutline14: (props: { size?: number; className?: string }) => JSX.Element
   export const IconWarningOutline16: (props: { size?: number; className?: string }) => JSX.Element

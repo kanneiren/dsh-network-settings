@@ -40,11 +40,13 @@ function inspection(): any {
 }
 
 describe('ConfigureSection (read-only status)', () => {
-  it('shows scoped status and WSL global network, with no mutation buttons', () => {
+  it('shows only enabled scopes and collapses disabled scopes', () => {
     render(<ConfigureSection inspection={inspection()} t={t} />)
     expect(screen.getByText(zh.configureTitle)).toBeTruthy()
-    expect(screen.getByText(zh.wslGlobalNetwork)).toBeTruthy()
-    expect(screen.getByText(/mirrored/)).toBeTruthy()
-    expect(document.querySelectorAll('button').length).toBe(0)
+    expect(screen.getByText(zh.clearWininet)).toBeTruthy()
+    expect(screen.getByText(zh.clearDshEnv)).toBeTruthy()
+    expect(screen.getByText('127.0.0.1:7890')).toBeTruthy()
+    expect(screen.getByText(/未启用配置/)).toBeTruthy()
+    expect(screen.queryByText(zh.wslGlobalNetwork)).toBeNull()
   })
 })

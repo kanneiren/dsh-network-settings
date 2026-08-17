@@ -39,6 +39,7 @@ export interface WindowsInterface {
   description: string
   status: 'up' | 'down' | 'unknown'
   virtual: boolean
+  interfaceIndex?: number
   kind: string
   ipv4: string[]
   ipv6: string[]
@@ -49,6 +50,8 @@ export interface WindowsInterface {
 export interface WindowsNetworkInspection {
   interfaces: WindowsInterface[]
   defaultRoutes: { family: 4 | 6; destination: string; nextHop: string; interfaceIndex: number; metric?: number }[]
+  gatewayPing?: boolean
+  gatewayNeighborState?: string
 }
 
 export interface WinInetProxyInspection {
@@ -107,6 +110,7 @@ export interface WslDistribution {
     environment?: EnvironmentScopeSnapshot
     defaultRoute?: string
     resolvConf?: string[]
+    interfaces?: { name: string; ipv4: string[]; ipv6: string[] }[]
     wslConf?: {
       network?: { generateResolvConf?: boolean; generateHosts?: boolean; hostname?: string }
       boot?: { systemd?: boolean }
@@ -166,6 +170,9 @@ export interface DiagnosisReport {
 export interface RunResult {
   inspection: NetworkInspection
   diagnosis: DiagnosisReport
+  graph?: NetworkPathGraph
+  summary?: NetworkPathSummary
+  targets?: NetworkTarget[]
   timestamp: string
 }
 
@@ -174,6 +181,205 @@ export interface StatusResult {
   cached: boolean
   timestamp: string
   diagnosis?: DiagnosisReport
+  summary?: NetworkPathSummary
+  targets?: NetworkTarget[]
+}
+
+// ── Structured Network Path Graph (mirrors src/host/network/types.ts) ──
+
+export type PathConfidence = 'verified' | 'inferred' | 'unknown'
+export type PathStatus = 'healthy' | 'warning' | 'error' | 'unknown' | 'not-applicable'
+export type RuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION' | 'UNSUPPORTED_RUNTIME'
+export type SupportedRuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION'
+
+export type PathNodeType =
+  | 'PROCESS' | 'DISTRIBUTION' | 'NETWORK_LAYER' | 'HOST' | 'PROXY'
+  | 'INTERFACE' | 'GATEWAY' | 'INTERNET' | 'TARGET'
+  | 'DNS' | 'NAT' | 'ENVIRONMENT' | 'ROUTE'
+
+export type EvidenceSource =
+  | 'PROCESS_ENV' | 'WINDOWS_API' | 'WINDOWS_PROXY' | 'WINHTTP'
+  | 'WSL_ROUTE' | 'WSL_CONFIG' | 'DNS_PROBE' | 'TCP_PROBE'
+  | 'TLS_PROBE' | 'HTTP_PROBE' | 'PROCESS_TABLE'
+  | 'BROWSER_POLICY' | 'BROWSER_COMMAND_LINE' | 'BROWSER_SETTINGS'
+  | 'OS_RELEASE' | 'PROC_VERSION' | 'WSL_LIST' | 'WINDOWS_ROUTE'
+  | 'DSH_SETTINGS' | 'DRIFT_RULE'
+
+export interface Evidence {
+  source: EvidenceSource
+  confidence: 'verified' | 'inferred'
+  value?: string
+  ref?: string
+}
+
+export interface DetailField {
+  label: string
+  value: string
+  evidence?: Evidence[]
+}
+
+export interface PathNode {
+  id: string
+  type: PathNodeType
+  role: 'main' | 'auxiliary'
+  label: string
+  subtitle?: string
+  status: PathStatus
+  address?: string
+  port?: number
+  details?: DetailField[]
+  evidence?: Evidence[]
+}
+
+export type PathEdgeRelation =
+  | 'DIRECT' | 'PROXY' | 'ROUTE' | 'NAT' | 'MIRRORED'
+  | 'HOST_BRIDGE' | 'TARGET_CONNECTION' | 'WSL1' | 'VIRTIOPROXY'
+
+export interface PathEdge {
+  from: string
+  to: string
+  relation: PathEdgeRelation
+  status: PathStatus
+  label?: string
+  evidence?: Evidence[]
+}
+
+export interface NetworkTarget {
+  id: string
+  label: string
+  host: string
+  port?: number
+  url?: string
+  kind: 'model-service' | 'deepseek' | 'openai' | 'github' | 'npm-registry' | 'custom'
+  display: string
+}
+
+export interface WindowsNativeRuntime {
+  type: 'WINDOWS_NATIVE'
+  platform: 'win32'
+  nodeVersion: string
+  os?: { caption: string; version: string; build: string; architecture: string }
+  confidence: PathConfidence
+}
+
+export interface WslDistributionRuntime {
+  type: 'WSL_DISTRIBUTION'
+  confidence: PathConfidence
+  registeredName?: string
+  displayName: string
+  linux: { id?: string; prettyName?: string; versionId?: string; versionCodename?: string; kernelRelease: string }
+  wslVersion?: 1 | 2
+  networkLayer: {
+    mode: 'WSL1' | 'NAT' | 'MIRRORED' | 'BRIDGED' | 'NONE' | 'VIRTIOPROXY' | 'UNKNOWN'
+    modeConfigured: boolean
+    dnsTunneling?: boolean
+    autoProxy?: boolean
+  }
+  interopAvailable: boolean
+}
+
+export interface UnsupportedRuntime {
+  type: 'UNSUPPORTED_RUNTIME'
+  platform: string
+  reason: 'LINUX_NOT_WSL' | 'LINUX_CONTAINER_ON_WSL' | 'UNKNOWN_PLATFORM'
+  humanMessage: string
+}
+
+export type DetectedRuntime = WindowsNativeRuntime | WslDistributionRuntime | UnsupportedRuntime
+
+export interface ProxyConfiguration {
+  id: string
+  source: string
+  sourceKey: string
+  mode: 'DIRECT' | 'SYSTEM' | 'AUTO_DETECT' | 'FIXED_SERVERS' | 'PAC_SCRIPT' | 'UNKNOWN'
+  displayValue: string
+  scheme?: 'http' | 'https' | 'socks' | 'socks4' | 'socks5' | 'unknown'
+  host?: string
+  port?: number
+  bypass?: string[]
+  pacUrl?: string
+  pacMandatory?: boolean
+  evidence: Evidence[]
+}
+
+export interface GraphProxyListener {
+  address: string
+  port: number
+  pid?: number
+  processName?: string
+  state: 'LISTENING' | 'NOT_FOUND' | 'UNKNOWN'
+  evidence: Evidence[]
+}
+
+export interface GraphProxyEndpoint {
+  id: string
+  host: string
+  port: number
+  scheme: 'http' | 'https' | 'socks' | 'socks4' | 'socks5' | 'unknown'
+  state: 'CONFIGURED' | 'REACHABLE' | 'USABLE' | 'UNREACHABLE' | 'UNUSABLE' | 'UNKNOWN'
+  configurationIds: string[]
+  listener?: GraphProxyListener
+  reachableFrom: Array<{
+    from: 'dsh' | 'wsl' | 'windows-reference'
+    viaAddress?: string
+    state: 'REACHABLE' | 'UNREACHABLE' | 'UNKNOWN'
+    evidence: Evidence[]
+  }>
+  evidence: Evidence[]
+}
+
+export interface DnsBranch {
+  id: string
+  host: string
+  resolvedAddresses: string[]
+  status: PathStatus
+  resolution: 'LOCAL' | 'DELEGATED_TO_PROXY' | 'UNKNOWN'
+  evidence: Evidence[]
+}
+
+export interface NetworkPath {
+  id: 'dsh'
+  label: string
+  status: PathStatus
+  egress: {
+    mode: 'DIRECT' | 'PROXY' | 'PAC' | 'UNKNOWN'
+    proxyConfiguration?: ProxyConfiguration
+    proxyEndpoint?: GraphProxyEndpoint
+  }
+  nodes: PathNode[]
+  edges: PathEdge[]
+  dns: DnsBranch[]
+  firstFailingEdgeId?: string
+  probe?: LayeredProbe
+}
+
+export interface NetworkDiagnostic {
+  code: string
+  severity: 'error' | 'warning' | 'info'
+  confidence: number
+  pathIds: Array<'dsh'>
+  humanMessage: string
+  technicalMessage: string
+  evidence: Evidence[]
+  actions: Array<{ code: string; scope: string; label: string; safe: boolean }>
+  firstFailingEdge?: { edgeId: string; from: string; to: string }
+}
+
+export interface NetworkPathGraph {
+  model: SupportedRuntimeModel
+  runtime: WindowsNativeRuntime | WslDistributionRuntime
+  target: NetworkTarget
+  dshPath: NetworkPath
+  diagnostics: NetworkDiagnostic[]
+  recommendedRepair?: { diagnosisCode: string; actionCodes: string[]; label: string }
+  generatedAt: string
+}
+
+export interface NetworkPathSummary {
+  model: RuntimeModel
+  target: NetworkTarget
+  dsh: { status: PathStatus; label: string }
+  problemCount: number
 }
 
 export type RpcResult<T> =

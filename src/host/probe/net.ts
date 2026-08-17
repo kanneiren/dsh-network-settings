@@ -334,6 +334,96 @@ export function probeHttpThroughProxy(
   })
 }
 
+export interface RepeatedProbeOptions extends ProbeTimerOptions {
+  attempts?: number
+  intervalMs?: number
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function attemptSummary(checks: readonly ProbeCheck[], layer: 'tcp' | 'http'): Record<string, unknown> {
+  const successes = checks.filter(check => check.status === 'healthy')
+  const latencies = successes.map(check => check.latencyMs).filter((value): value is number => value !== undefined)
+  return {
+    attempts: checks.map(check => ({ status: check.status, latencyMs: check.latencyMs, error: check.technicalMessage ?? check.humanMessage })),
+    attemptCount: checks.length,
+    successCount: successes.length,
+    successRate: checks.length === 0 ? 0 : Math.round((successes.length / checks.length) * 100),
+    ...latencies.length === 0 ? {} : {
+      avgLatencyMs: Math.round(latencies.reduce((sum, value) => sum + value, 0) / latencies.length),
+      minLatencyMs: Math.min(...latencies),
+      maxLatencyMs: Math.max(...latencies),
+    },
+  }
+}
+
+function aggregateStatus(checks: readonly ProbeCheck[]): 'healthy' | 'warning' | 'error' {
+  if (checks.length === 0) return 'error'
+  const successes = checks.filter(check => check.status === 'healthy').length
+  if (successes === checks.length) return 'healthy'
+  if (successes > 0) return 'warning'
+  return 'error'
+}
+
+/** Repeat TCP connect attempts and expose success rate / latency spread. */
+export async function probeTcpRepeated(host: string, port: number, options: RepeatedProbeOptions = {}): Promise<ProbeCheck & TcpProbeResult> {
+  const attempts = options.attempts ?? 1
+  const intervalMs = options.intervalMs ?? 0
+  const checks: Array<ProbeCheck & TcpProbeResult> = []
+  for (let index = 0; index < attempts; index += 1) {
+    checks.push(await probeTcp(host, port, options))
+    if (index < attempts - 1 && intervalMs > 0) await delay(intervalMs)
+  }
+  const status = aggregateStatus(checks)
+  const healthyChecks = checks.filter(check => check.status === 'healthy')
+  const last = checks[checks.length - 1]!
+  return {
+    status,
+    humanMessage: status === 'healthy'
+      ? `${host}:${port} ${attempts}/${attempts} 次连接成功`
+      : status === 'warning'
+        ? `${host}:${port} ${healthyChecks.length}/${attempts} 次连接成功（不稳定）`
+        : `${host}:${port} ${attempts} 次连接均失败`,
+    technicalMessage: checks.map(check => check.technicalMessage ?? check.humanMessage).join(' | '),
+    source: 'node:net',
+    timestamp: new Date().toISOString(),
+    latencyMs: healthyChecks[0]?.latencyMs,
+    address: healthyChecks[0]?.address,
+    details: { host, port, ...attemptSummary(checks, 'tcp') },
+  }
+}
+
+/** Repeat HTTP requests and expose success rate / latency spread. */
+export async function probeHttpRepeated(url: string, options: RepeatedProbeOptions & { method?: string } = {}): Promise<ProbeCheck & HttpProbeResult> {
+  const attempts = options.attempts ?? 1
+  const intervalMs = options.intervalMs ?? 0
+  const checks: Array<ProbeCheck & HttpProbeResult> = []
+  for (let index = 0; index < attempts; index += 1) {
+    checks.push(await probeHttp(url, options))
+    if (index < attempts - 1 && intervalMs > 0) await delay(intervalMs)
+  }
+  const status = aggregateStatus(checks)
+  const healthyChecks = checks.filter(check => check.status === 'healthy')
+  const last = checks[checks.length - 1]!
+  return {
+    status,
+    humanMessage: status === 'healthy'
+      ? `${url} ${attempts}/${attempts} 次请求成功`
+      : status === 'warning'
+        ? `${url} ${healthyChecks.length}/${attempts} 次请求成功（不稳定）`
+        : `${url} ${attempts} 次请求均失败`,
+    technicalMessage: checks.map(check => check.technicalMessage ?? check.humanMessage).join(' | '),
+    source: 'node:fetch',
+    timestamp: new Date().toISOString(),
+    latencyMs: healthyChecks[0]?.latencyMs,
+    viaProxy: false,
+    url,
+    details: { url, ...attemptSummary(checks, 'http') },
+  }
+}
+
 function aborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true
 }

@@ -32,11 +32,33 @@ export async function runWslScript(
   return {
     code: result.code,
     stdout: decodeWslCommand(result.stdout),
-    stderr: result.stderr,
+    stderr: cleanWslStderr(result.stderr),
     timedOut: result.timedOut,
     aborted: result.aborted,
     durationMs: result.durationMs,
   }
+}
+
+/**
+ * `wsl.exe` may print its own localhost-relay warning to stderr before the
+ * Linux command output. It is emitted as UTF-16 over a UTF-8 pipe, producing
+ * mojibake such as `wsl: �hKm0R localhost ...`. Those lines are launcher
+ * noise, not probe evidence, so drop them while keeping curl/python errors.
+ */
+export function cleanWslStderr(stderr: string): string {
+  return stderr
+    .replaceAll('\0', '')
+    .split(/\r?\n/)
+    .map(line => line.trimEnd())
+    .filter(line => {
+      const trimmed = line.trim()
+      if (trimmed === '') return false
+      if (/^wsl:\s/.test(trimmed)) return false
+      if (/localhost.*(?:WSL|NAT|localhost)/i.test(trimmed) && trimmed.includes('wsl')) return false
+      return true
+    })
+    .join('\n')
+    .trim()
 }
 
 function shellQuote(value: string): string {

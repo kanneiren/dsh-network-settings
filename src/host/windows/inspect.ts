@@ -29,6 +29,8 @@ interface RawWindowsFacts {
   os?: { caption?: string; version?: string; build?: string; architecture?: string }
   adapters?: RawAdapter[]
   defaultRoutes?: { Family?: number; DestinationPrefix?: string; NextHop?: string; InterfaceIndex?: number; RouteMetric?: number }[]
+  gatewayPing?: boolean
+  gatewayNeighborState?: string
   wininet?: Record<string, unknown>
   winhttpAdvProxyMachine?: string
   winhttpAdvProxyUser?: string
@@ -66,6 +68,14 @@ $routes += Get-NetRoute -AddressFamily IPv4 -ErrorAction SilentlyContinue | Wher
 }
 $routes += Get-NetRoute -AddressFamily IPv6 -ErrorAction SilentlyContinue | Where-Object { $_.DestinationPrefix -eq '::/0' } | ForEach-Object {
   [pscustomobject]@{ Family = 6; DestinationPrefix = $_.DestinationPrefix; NextHop = $_.NextHop; InterfaceIndex = $_.ifIndex; RouteMetric = $_.RouteMetric }
+}
+$gatewayPing = $null
+$gatewayNeighborState = $null
+$firstGateway = ($routes | Where-Object { $_.Family -eq 4 } | Select-Object -First 1).NextHop
+if ($firstGateway) {
+  $gatewayPing = [bool](Test-Connection -TargetName $firstGateway -Count 1 -Quiet -ErrorAction SilentlyContinue)
+  $neighbor = Get-NetNeighbor -IPAddress $firstGateway -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($neighbor) { $gatewayNeighborState = [string]$neighbor.State }
 }
 $inet = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue
 $wininet = @{}
@@ -105,6 +115,8 @@ if (Test-Path "$env:SystemRoot\System32\drivers\etc\hosts") {
   os = [pscustomobject]@{ caption = [string]$os.Caption; version = [string]$os.Version; build = [string]$os.BuildNumber; architecture = [string]$os.OSArchitecture }
   adapters = @($adapters)
   defaultRoutes = @($routes)
+  gatewayPing = $gatewayPing
+  gatewayNeighborState = $gatewayNeighborState
   wininet = $wininet
   winhttpAdvProxyMachine = $advMachine
   winhttpAdvProxyUser = $advUser
@@ -162,6 +174,8 @@ export async function inspectWindowsFacts(options: InspectWindowsOptions = {}): 
             ...route.RouteMetric === undefined ? {} : { metric: route.RouteMetric },
           }],
     ),
+    ...facts.gatewayPing === undefined ? {} : { gatewayPing: facts.gatewayPing },
+    ...facts.gatewayNeighborState === undefined || facts.gatewayNeighborState === '' ? {} : { gatewayNeighborState: facts.gatewayNeighborState },
   }
 
   const wininet: WinInetProxyInspection = {
@@ -217,6 +231,7 @@ function parseAdapters(raw: RawAdapter[]): WindowsInterface[] {
       description: adapter.InterfaceDescription ?? '',
       status,
       virtual: adapter.Virtual === true,
+      ...adapter.InterfaceIndex === undefined ? {} : { interfaceIndex: adapter.InterfaceIndex },
       ...adapter.MacAddress === undefined || adapter.MacAddress === null ? {} : { mac: String(adapter.MacAddress) },
       kind: classifyInterface(adapter.InterfaceDescription ?? adapter.Name ?? ''),
       ipv4: (adapter.IPv4 ?? []).filter((entry): entry is string => typeof entry === 'string'),

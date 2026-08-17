@@ -1,5 +1,5 @@
 /** Build a compact, agent-friendly Markdown diagnostic report. */
-import type { DiagnosisReport, NetworkInspection } from './contract.ts'
+import type { DiagnosisReport, NetworkInspection, NetworkPathGraph, NetworkPathSummary } from './contract.ts'
 import type { NetworkLocaleKey } from './locales.ts'
 
 type T = (key: NetworkLocaleKey, params?: Record<string, string | number>) => string
@@ -8,7 +8,7 @@ function statusText(status: string): string {
   return status
 }
 
-export function buildDiagnosticReport(inspection: NetworkInspection, report: DiagnosisReport, t: T): string {
+export function buildDiagnosticReport(inspection: NetworkInspection, report: DiagnosisReport, t: T, graph?: NetworkPathGraph, summary?: NetworkPathSummary): string {
   const lines: string[] = []
   lines.push(`# ${t('reportTitle')}`)
   lines.push('')
@@ -16,6 +16,25 @@ export function buildDiagnosticReport(inspection: NetworkInspection, report: Dia
   lines.push(`- ${t('reportStatus')}: ${statusText(report.worst)}`)
   lines.push(`- ${t('reportProblems')}: ${report.problemCount}`)
   lines.push('')
+
+  if (summary !== undefined) {
+    lines.push(`## ${t('networkGraphTitle')}`)
+    lines.push(`- ${t('currentTarget')}: ${summary.target.label} · ${summary.target.display}`)
+    lines.push(`- DSH: ${summary.dsh.label} · ${summary.dsh.status}`)
+    if (graph !== undefined) {
+      lines.push('- path:')
+      for (const node of graph.dshPath.nodes.filter(node => node.role === 'main')) {
+        lines.push(`  - ${node.status} ${node.type} ${node.label}${node.address === undefined ? '' : ` ${node.address}${node.port === undefined ? '' : `:${node.port}`}`}`)
+      }
+      if (graph.dshPath.firstFailingEdgeId !== undefined) lines.push(`- first failure: ${graph.dshPath.firstFailingEdgeId}`)
+      if (graph.diagnostics.length > 0) {
+        lines.push('- drift diagnostics:')
+        for (const item of graph.diagnostics) lines.push(`  - ${item.code} ${item.severity}: ${item.humanMessage}`)
+      }
+      if (graph.recommendedRepair !== undefined) lines.push(`- recommended repair: ${graph.recommendedRepair.label}`)
+    }
+    lines.push('')
+  }
 
   lines.push(`## ${t('reportDiagnosis')}`)
   if (report.diagnoses.length === 0) {
@@ -94,6 +113,10 @@ export function buildDiagnosticReport(inspection: NetworkInspection, report: Dia
     lines.push(`- ${probe.target.label} [${probe.path}] ${layers}`)
     for (const check of Object.values(probe.layers)) {
       if (check?.technicalMessage !== undefined) lines.push(`  - ${check.technicalMessage}`)
+      const details = check?.details as { attemptCount?: unknown; successCount?: unknown; avgLatencyMs?: unknown; minLatencyMs?: unknown; maxLatencyMs?: unknown } | undefined
+      if (details?.attemptCount !== undefined) {
+        lines.push(`  - attempts: ${String(details.successCount ?? 0)}/${String(details.attemptCount)}${details.avgLatencyMs === undefined ? '' : ` avg=${String(details.avgLatencyMs)}ms`}${details.minLatencyMs === undefined ? '' : ` min=${String(details.minLatencyMs)}ms`}${details.maxLatencyMs === undefined ? '' : ` max=${String(details.maxLatencyMs)}ms`}`)
+      }
     }
   }
 

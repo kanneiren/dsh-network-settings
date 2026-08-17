@@ -9,11 +9,20 @@ Chinese: [README.zh-CN.md](README.zh-CN.md)
 ## What it does
 
 ```text
-Open the page → see cached status → run one full check
-→ understand the problem in plain language
+Open the page → see cached status → run single or stability check
+→ understand the problem in plain language → copy an Agent-ready report
 → apply a scoped, previewed and reversible fix when one exists
 ```
 
+- Dual network-model path graph: auto-detects `WINDOWS_NATIVE` /
+  `WSL_DISTRIBUTION`, renders the current DSH process network path, DNS side
+  branch and first-failure highlighting.
+- Separate single-check and stability-check actions; stability mode repeats
+  TCP/HTTP samples and shows success counts/failures in the graph.
+- One-click Agent-ready Markdown network report copy.
+- Configuration Drift detection: finds stale proxy configuration used by the
+  current DSH runtime; a mere difference that is healthy is reported as info.
+- Built-in DeepSeek / OpenAI / GitHub / npm Registry targets.
 - Read-only Windows network inspection: interfaces, IPv4/IPv6, gateways,
   routes, DNS, DHCP, WinINet user proxy, WinHTTP user/machine proxy,
   Process/User/Machine proxy environment variables, DSH process environment,
@@ -30,6 +39,13 @@ Open the page → see cached status → run one full check
 - Deterministic diagnosis (no LLM): stale DSH proxy env, proxy endpoint
   unreachable/unusable, DNS failure, TLS failure, env scope conflicts, WSL
   proxy unreachable, stale WSL autoProxy, Hosts overrides.
+- Hierarchical network configuration: Proxy / DSH / WSL / Advanced network
+  with progressive disclosure; before detection it shows UNKNOWN and hides
+  the WSL group.
+- Actions are chosen by source and risk: direct low-risk buttons, opening
+  native Windows settings, opening/copying config locations, and explicitly
+  confirmed system recovery. Persistent changes always flow through
+  Snapshot → Diff → Confirm → Apply → Re-detect.
 - Scoped configuration with preview + confirmation: WinINet, WinHTTP,
   Windows environment variables, current DSH process. Machine-level changes
   request UAC only when executed.
@@ -48,6 +64,33 @@ Open the page → see cached status → run one full check
 - **WSL support range**: WSL1/WSL2, any distribution. Capability detection is
   used instead of distribution detection; identity is display-only.
 - **Permissions**: see [Permissions](#permissions).
+
+## Targets and the `:443` suffix
+
+The graph shows targets as `host:port`. `443` is the standard HTTPS port, so
+`api.deepseek.com:443` means `https://api.deepseek.com`. The plugin only sends
+DNS / TCP / TLS / HTTP HEAD probes; no prompt or credentials are sent.
+
+Built-in targets:
+
+| id | label | probe URL |
+|---|---|---|
+| `deepseek` | DeepSeek | `https://api.deepseek.com:443` |
+| `openai` | OpenAI | `https://api.openai.com:443` |
+| `github` | GitHub | `https://github.com:443` |
+| `npm-registry` | npm Registry | `https://registry.npmjs.org:443` |
+
+When DSH has an explicit model-service Base URL it is added as the current
+model service and becomes the default target.
+
+To add a target, edit `PUBLIC_TARGETS` in `src/host/network/index.ts`:
+
+```ts
+{ id: 'my-api', label: 'My API', host: 'example.com', port: 443,
+  url: 'https://example.com', kind: 'custom', display: 'example.com:443' },
+```
+
+Then rebuild with `npm run build` and restart DSH.
 
 ## Install
 

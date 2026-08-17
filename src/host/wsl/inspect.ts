@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   EnvironmentScopeSnapshot, HostCandidate, ProbeCheck, WslCapabilities, WslDistribution,
-  WslInspection, WslNetworkConfig, WslNetworkInspection, WslOsMetadata,
+  WslInspection, WslLinuxInterface, WslNetworkConfig, WslNetworkInspection, WslOsMetadata,
 } from '../model.ts'
 import { runCommand } from '../runtime/command.ts'
 import { decodeWslCommand, decodeWslUtf16 } from './encoding.ts'
@@ -107,6 +107,7 @@ export async function inspectWsl(options: InspectWslOptions = {}): Promise<WslIn
             hostCandidates: hostCandidates(globalConfig, distribution.wslVersion, facts.defaultRoute, facts.resolvNameservers),
             resolvConf: facts.resolvNameservers,
             ...facts.defaultRoute === undefined ? {} : { defaultRoute: facts.defaultRoute },
+            interfaces: facts.interfaces,
             environment: facts.environment,
             ...facts.wslConf === undefined ? {} : { wslConf: facts.wslConf },
             generatedBy: 'quiet-running',
@@ -203,6 +204,8 @@ echo '---RESOLVCONF---'
 cat /etc/resolv.conf 2>/dev/null || true
 echo '---ROUTE---'
 ip route show default 2>/dev/null || true
+echo '---IFACES---'
+ip -o addr show 2>/dev/null || hostname -I 2>/dev/null || true
 echo '---WSLCONF---'
 cat /etc/wsl.conf 2>/dev/null || true
 echo '---ENV---'
@@ -215,6 +218,7 @@ interface DistroFacts {
   capabilities: WslCapabilities
   resolvNameservers: string[]
   defaultRoute?: string
+  interfaces: WslLinuxInterface[]
   environment: EnvironmentScopeSnapshot
   wslConf?: NonNullable<WslNetworkInspection['wslConf']>
 }
@@ -252,6 +256,7 @@ export function parseDistroFacts(text: string): DistroFacts {
     .map(line => line.replace(/^\s*nameserver\s+/i, '').trim())
   const routeLine = (sections.get('ROUTE') ?? []).find(line => /^default\s+/i.test(line))
   const defaultRoute = routeLine === undefined ? undefined : routeLine.trim().split(/\s+/)[2]
+  const interfaces = parseWslLinuxInterfaces((sections.get('IFACES') ?? []).join('\n'))
   const envLines = sections.get('ENV') ?? []
   const environment: Record<string, unknown> = {}
   for (const line of envLines) {
@@ -282,9 +287,44 @@ export function parseDistroFacts(text: string): DistroFacts {
     },
     resolvNameservers,
     ...defaultRoute === undefined ? {} : { defaultRoute },
+    interfaces,
     environment: proxyEnvironmentOf(environment),
     ...hasWslConf ? { wslConf: wslConf as NonNullable<WslNetworkInspection['wslConf']> } : {},
   }
+}
+
+export function parseWslLinuxInterfaces(text: string): WslLinuxInterface[] {
+  const interfaces = new Map<string, WslLinuxInterface>()
+  const add = (name: string, address: string): void => {
+    if (name === '' || address === '') return
+    const entry = interfaces.get(name) ?? { name, ipv4: [], ipv6: [] }
+    if (address.includes(':')) entry.ipv6.push(address)
+    else entry.ipv4.push(address)
+    interfaces.set(name, entry)
+  }
+  for (const line of text.replaceAll('\r\n', '\n').split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed === '') continue
+    const ipMatch = /^\d+:\s+([^\s@]+).*?\s+inet6?\s+([0-9a-fA-F:.]+)/.exec(trimmed)
+    if (ipMatch !== null) add(ipMatch[1] ?? '', ipMatch[2] ?? '')
+    for (const part of trimmed.split(/\s+/)) {
+      const candidate = part.trim()
+      if (candidate === '') continue
+      if (candidate.includes(':') && candidate.includes('.')) continue
+      if (/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(candidate)) add(guessInterfaceName(text, candidate), candidate)
+    }
+  }
+  const output = [...interfaces.values()]
+  if (output.length > 0) return output
+  // hostname -I fallback outputs only addresses; put them on a pseudo-interface.
+  const addresses = text.trim().split(/\s+/).filter(entry => /^[0-9a-fA-F:.]+$/.test(entry))
+  if (addresses.length > 0) return [{ name: 'linux', ipv4: addresses.filter(entry => !entry.includes(':')), ipv6: addresses.filter(entry => entry.includes(':')) }]
+  return []
+}
+
+function guessInterfaceName(text: string, address: string): string {
+  const match = /^\d+:\s+([^\s@]+).*?\s+inet\s+[0-9a-fA-F:.]+/.exec(text)
+  return match?.[1] ?? 'linux'
 }
 
 function parseOsRelease(text: string): WslOsMetadata {

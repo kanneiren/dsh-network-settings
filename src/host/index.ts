@@ -5,8 +5,7 @@
  * authority. All command execution stays behind this boundary; the client half
  * never executes platform commands.
  */
-import { diagnoseNetwork } from './diagnose/index.ts'
-import type { NetworkInspection } from './model.ts'
+import type { ModelServiceTarget, NetworkInspection, ProbeTarget } from './model.ts'
 import type { DiagnosisReport } from './diagnose/rules.ts'
 import { readJson, writeJson } from './runtime/store.ts'
 import { applyConfigure, previewConfigure, type ConfigureRequest } from './configure/index.ts'
@@ -20,7 +19,11 @@ import { deleteHostsEntry, previewHostsDelete, readHostsEntries, type HostsEntry
 import type { DiagnosisAction } from './diagnose/model.ts'
 import type { SnapshotScope } from './snapshot/store.ts'
 import { applyDshProxyConfig, readDshConfig } from './configure/dsh.ts'
+import { openConfigLocation, openWindowsProxySettings } from './configure/open.ts'
+import { redact } from './redact.ts'
 import { collectModelServiceTargets } from './dsh/model-services.ts'
+import { buildNetworkReport, buildTargets, type NetworkPathSummary } from './network/index.ts'
+import type { NetworkTarget, NetworkPathGraph } from './network/types.ts'
 
 export const name = 'dsh-network-settings'
 export const inject = ['connection', 'settings', 'llm'] as const
@@ -31,8 +34,14 @@ const LAST_REPORT_FILE = 'last-report.json'
 interface CachedReport {
   inspection: NetworkInspection
   diagnosis: DiagnosisReport
+  graph?: NetworkPathGraph
+  summary?: NetworkPathSummary
+  targets?: NetworkTarget[]
   timestamp: string
 }
+
+let lastInspection: NetworkInspection | undefined
+let lastModelServices: ModelServiceTarget[] | undefined
 
 interface HostContext {
   connection: {
@@ -79,15 +88,58 @@ export function apply(ctx: HostContext): void {
           const cached = await readJson<CachedReport>(LAST_REPORT_FILE)
           return ok(cached === undefined
             ? { status: 'not-tested', cached: false, timestamp: new Date().toISOString() }
-            : { status: 'ready', cached: true, timestamp: cached.timestamp, diagnosis: cached.diagnosis })
+            : { status: 'ready', cached: true, timestamp: cached.timestamp, diagnosis: cached.diagnosis, summary: cached.summary, targets: cached.targets })
         }
         case 'run': {
           const options = asObject(payload)
-          const inspection = await inspectNetworkSafe(ctx, { ...options, signal })
-          const diagnosis = await diagnoseFrom(inspection)
-          const cached: CachedReport = { inspection, diagnosis, timestamp: new Date().toISOString() }
-          await writeJson(LAST_REPORT_FILE, cached)
-          return ok({ inspection, diagnosis, timestamp: cached.timestamp })
+          const requestSignal = signal
+          const modelServices = collectModelServiceTargets(ctx.settings, ctx.llm)
+          const { selected } = buildTargets(modelServices, typeof options['targetId'] === 'string' ? options['targetId'] : undefined)
+          const selectedProbe: ProbeTarget = {
+            id: selected.id,
+            label: selected.label,
+            host: selected.host,
+            ...selected.port === undefined ? {} : { port: selected.port },
+            ...selected.url === undefined ? {} : { url: selected.url },
+            kind: selected.kind === 'npm-registry' ? 'npm' : selected.kind === 'custom' ? 'internet' : selected.kind,
+          }
+          const reuse = lastInspection !== undefined && lastModelServices !== undefined && lastInspection.windows.rawErrors.length === 0
+            ? lastInspection
+            : undefined
+          const inspection = await inspectNetworkSafe(ctx, {
+            signal: requestSignal,
+            ...options['includeWsl'] === false ? { includeWsl: false } : {},
+            targets: [selectedProbe],
+            modelServices,
+            probePlan: options['probeMode'] === 'multi' ? 'multi' : 'single',
+            ...reuse === undefined ? {} : { reuse },
+          })
+          lastInspection = inspection
+          lastModelServices = modelServices
+          const networkReport = await buildNetworkReport({
+            inspection,
+            modelServices,
+            targetId: selected.id,
+          })
+          const diagnosis = await diagnoseFrom(inspection, networkReport.graph)
+          const cached: CachedReport = {
+            inspection,
+            diagnosis,
+            ...networkReport.graph === undefined ? {} : { graph: networkReport.graph },
+            summary: networkReport.summary,
+            targets: networkReport.targets,
+            timestamp: new Date().toISOString(),
+          }
+          await writeJson(LAST_REPORT_FILE, redact(cached))
+          const response = redact({
+            inspection,
+            diagnosis,
+            timestamp: cached.timestamp,
+            summary: networkReport.summary,
+            targets: networkReport.targets,
+            ...networkReport.graph === undefined ? {} : { graph: networkReport.graph },
+          })
+          return ok(response)
         }
         case 'configure/preview':
           return ok(await previewConfigure(payload as ConfigureRequest))
@@ -148,6 +200,14 @@ export function apply(ctx: HostContext): void {
           return ok(previewHostsDelete(asObject(payload)['entry'] as HostsEntry))
         case 'hosts/delete':
           return ok(await deleteHostsEntry(asObject(payload)['entry'] as HostsEntry))
+        case 'config/open-windows-proxy':
+          return ok(await openWindowsProxySettings())
+        case 'config/open-location': {
+          const body = asObject(payload)
+          const kind = body['kind']
+          if (kind !== 'wslconfig' && kind !== 'wsl-conf' && kind !== 'hosts') throw new Error('unknown config location')
+          return ok(await openConfigLocation(kind, typeof body['distribution'] === 'string' ? body['distribution'] : undefined))
+        }
         case 'advanced/list':
           return ok({ actions: advancedCatalog() })
         case 'advanced/run': {
@@ -165,17 +225,59 @@ export function apply(ctx: HostContext): void {
   }, { authority: 'loopback' }), `dsh-network-settings: ${CHANNEL} rpc channel`)
 }
 
-async function inspectNetworkSafe(ctx: HostContext, options: { signal?: AbortSignal; includeWsl?: boolean }): Promise<NetworkInspection> {
+async function inspectNetworkSafe(
+  ctx: HostContext,
+  options: { signal?: AbortSignal; includeWsl?: boolean; targets?: readonly ProbeTarget[]; modelServices?: ModelServiceTarget[]; probePlan?: 'single' | 'multi' },
+): Promise<NetworkInspection> {
   const { inspectNetwork } = await import('./inspect.ts')
-  return inspectNetwork({ ...options, timeoutMs: 60_000, modelServices: collectModelServiceTargets(ctx.settings, ctx.llm) })
+  return inspectNetwork({
+    ...options,
+    timeoutMs: 60_000,
+    modelServices: options.modelServices ?? collectModelServiceTargets(ctx.settings, ctx.llm),
+  })
 }
 
-async function diagnoseFrom(inspection: NetworkInspection): Promise<DiagnosisReport> {
+async function diagnoseFrom(inspection: NetworkInspection, graph?: NetworkPathGraph): Promise<DiagnosisReport> {
   const { runDiagnosis } = await import('./diagnose/rules.ts')
-  return runDiagnosis({
+  const report = await runDiagnosis({
     windows: inspection.windows,
     ...inspection.wsl === undefined ? {} : { wsl: inspection.wsl },
     probes: inspection.probes,
     endpoints: inspection.windows.proxy.endpoints,
   })
+  if (graph === undefined) return report
+  return mergeGraphDiagnostics(report, graph)
+}
+
+/** Graph/Drift diagnostics are merged into the legacy report so the existing
+ * RepairSection snapshot→diff→confirm→apply→re-run→rollback flow keeps working. */
+function mergeGraphDiagnostics(report: DiagnosisReport, graph: NetworkPathGraph): DiagnosisReport {
+  const driftCodes = new Set(graph.diagnostics.map(item => item.code))
+  const base = report.diagnoses.filter(item =>
+    !(driftCodes.has('DRIFT_DSH_PROXY_STALE') && item.code === 'STALE_DSH_PROXY_ENV')
+    && !(driftCodes.has('DRIFT_WSL_PROXY_STALE')
+      && (item.code === 'WSL_PROXY_UNREACHABLE' || item.code === 'WSL_PROXY_LOOPBACK_UNREACHABLE' || item.code === 'WSL_AUTOPROXY_STALE')))
+  const merged = [...base]
+  for (const item of graph.diagnostics) {
+    const scope = item.pathIds[0] === 'dsh' && graph.model === 'WSL_DISTRIBUTION' ? 'wsl' : item.pathIds[0] === 'dsh' ? 'dsh' : 'proxy'
+    merged.push({
+      code: item.code,
+      severity: item.severity,
+      confidence: item.confidence,
+      scope,
+      humanMessage: item.humanMessage,
+      technicalMessage: item.technicalMessage,
+      evidence: item.evidence.map(entry => ({
+        ref: `${entry.source}${entry.ref === undefined ? '' : `:${entry.ref}`}`,
+        message: entry.value ?? entry.source,
+        status: item.severity === 'error' ? 'error' as const : item.severity === 'warning' ? 'warning' as const : 'unknown' as const,
+      })),
+      actions: item.actions.map(action => ({ ...action })),
+    })
+  }
+  const worst = merged.some(item => item.severity === 'error') ? 'error' as const
+    : merged.some(item => item.severity === 'warning') ? 'warning' as const
+    : merged.some(item => item.severity === 'info') ? 'info' as const
+    : report.worst
+  return { diagnoses: merged, worst, problemCount: merged.filter(item => item.severity === 'error').length }
 }
