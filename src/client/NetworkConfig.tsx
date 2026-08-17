@@ -107,11 +107,11 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configEnvVars')}</div>
             <div className={css.detailMeta}>{t('envProxyNote')}</div>
-            {(['process', 'user', 'machine', 'dsh'] as const).map(scope => {
+            {(['user', 'machine'] as const).map(scope => {
               const entries = hasInspection ? envEntries(env[scope]) : []
               return (
                 <div key={scope} className={css.detailRow}>
-                  <span className={css.detailName}>{t(scopeLabel(scope))}</span>
+                  <span className={css.detailName}>{scope === 'user' ? t('envScopeUser') : t('envScopeMachine')}</span>
                   {!hasInspection ? <span className={css.detailMeta}>{t('unknownLabel')}</span> : null}
                   {hasInspection && entries.length === 0 ? <span className={css.detailMeta}>{t('envProxyNotSet')}</span> : null}
                   {entries.map(([name, value]) => (
@@ -156,7 +156,7 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             {(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'] as const).map(name => (
               <div key={name} className={css.detailRow}>
                 <span className={css.detailName}>{name}</span>
-                <span className={css.detailMeta}>{hasInspection ? (dshEnv[name] ?? t('currentDisabled')) : t('unknownLabel')}</span>
+                <span className={css.detailMeta}>{hasInspection ? (dshEnv[name] ?? t('envProxyNotSet')) : t('unknownLabel')}</span>
               </div>
             ))}
             {staleDshProxy ? <div className={css.detailMeta}>{t('staleProxyHint')}</div> : null}
@@ -185,6 +185,14 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
                 <Button variant="outline" size="sm" onClick={() => { void openLocation('wsl-conf', currentDistro?.name) }}>{t('openConfigLocation')}</Button>
                 <Button variant="outline" size="sm" onClick={() => { void copyPath(`\\\\wsl.localhost\\${currentDistro?.name ?? '<distro>'}\etc\wsl.conf`) }}>{copiedPath === `\\\\wsl.localhost\\${currentDistro?.name ?? '<distro>'}\etc\wsl.conf` ? t('copied') : t('copyPath')}</Button>
               </div>
+            </div>
+            <div className={css.configCard}>
+              <div className={css.detailName}>{t('distroEnvironment')}</div>
+              {(() => {
+                const entries = envEntries(currentDistro?.network?.environment)
+                if (entries.length === 0) return <div className={css.detailMeta}>{t('envProxyNotSet')}</div>
+                return entries.map(([name, value]) => <div key={name} className={css.detailMeta}>{name}={value}</div>)
+              })()}
             </div>
             <div className={css.configCard}>
               <div className={css.detailName}>{t('wslGlobalConfigFile')}</div>
