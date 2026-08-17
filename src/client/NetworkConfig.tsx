@@ -179,6 +179,11 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
               <div className={css.detailMeta}>{t('wslMode', { mode: data.wsl?.globalConfig?.mode ?? 'unknown' })}</div>
               <div className={css.detailMeta}>{t('wslAutoProxy', { value: String(data.wsl?.globalConfig?.autoProxy ?? false) })}</div>
               <div className={css.detailMeta}>{t('wslDnsTunneling', { value: String(data.wsl?.globalConfig?.dnsTunneling ?? false) })}</div>
+              <div className={css.detailMeta}>/etc/wsl.conf{currentDistro === undefined ? '' : ` · ${currentDistro.name}`}</div>
+              <div className={css.actions}>
+                <Button variant="outline" size="sm" onClick={() => { void openLocation('wsl-conf', currentDistro?.name) }}>{t('openConfigLocation')}</Button>
+                <Button variant="outline" size="sm" onClick={() => { void copyPath(`\\\\wsl.localhost\\${currentDistro?.name ?? '<distro>'}\etc\wsl.conf`) }}>{copiedPath === `\\\\wsl.localhost\\${currentDistro?.name ?? '<distro>'}\etc\wsl.conf` ? t('copied') : t('copyPath')}</Button>
+              </div>
             </div>
             <div className={css.configCard}>
               <div className={css.detailName}>{t('wslGlobalConfigFile')}</div>
@@ -186,14 +191,6 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
               <div className={css.actions}>
                 <Button variant="outline" size="sm" onClick={() => { void openLocation('wslconfig') }}>{t('openConfigLocation')}</Button>
                 <Button variant="outline" size="sm" onClick={() => { void copyPath('%UserProfile%\\.wslconfig') }}>{copiedPath === '%UserProfile%\\.wslconfig' ? t('copied') : t('copyPath')}</Button>
-              </div>
-            </div>
-            <div className={css.configCard}>
-              <div className={css.detailName}>{t('wslConfFile')}</div>
-              <div className={css.detailMeta}>/etc/wsl.conf{currentDistro === undefined ? '' : ` · ${currentDistro.name}`}</div>
-              <div className={css.actions}>
-                <Button variant="outline" size="sm" onClick={() => { void openLocation('wsl-conf', currentDistro?.name) }}>{t('openConfigLocation')}</Button>
-                <Button variant="outline" size="sm" onClick={() => { void copyPath(`\\\\wsl.localhost\\${currentDistro?.name ?? '<distro>'}\\etc\\wsl.conf`) }}>{copiedPath === `\\\\wsl.localhost\\${currentDistro?.name ?? '<distro>'}\\etc\\wsl.conf` ? t('copied') : t('copyPath')}</Button>
               </div>
             </div>
             {otherDistros.length === 0 ? null : (
