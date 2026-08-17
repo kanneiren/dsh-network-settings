@@ -16,6 +16,12 @@
   },
   "files": [
     "lib",
+    "docs/architecture.md",
+    "docs/diagnostics.md",
+    "docs/network-first-aid.md",
+    "docs/agent-guide.md",
+    "docs/release-checklist.md",
+    "docs/network-path-graph.md",
     "cordis.patch.yml",
     "README.md",
     "README.zh-CN.md",

@@ -46,6 +46,15 @@ English: [README.md](README.md)
 - 高级网络急救逐项独立：`ipconfig /flushdns`、`netsh winhttp reset proxy`、
   `netsh winsock reset`、`netsh int ip reset`。
 
+## 文档
+
+- [架构](docs/architecture.md)
+- [诊断流程](docs/diagnostics.md)
+- [网络急救](docs/network-first-aid.md)
+- [Agent 指南](docs/agent-guide.md)
+- [发布检查清单](docs/release-checklist.md)
+- [网络路径图与配置漂移](docs/network-path-graph.md)
+
 ## 支持范围
 
 - **DSH**：`@deepseek-ai/dsh >= 0.1.0-rc.6`（Web profile）。

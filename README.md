@@ -54,6 +54,15 @@ Open the page → see cached status → run single or stability check
 - Advanced first aid as separate operations: `ipconfig /flushdns`,
   `netsh winhttp reset proxy`, `netsh winsock reset`, `netsh int ip reset`.
 
+## Docs
+
+- [Architecture](docs/architecture.md)
+- [Diagnostics](docs/diagnostics.md)
+- [Network first aid](docs/network-first-aid.md)
+- [Agent guide](docs/agent-guide.md)
+- [Release checklist](docs/release-checklist.md)
+- [Network path graph & drift](docs/network-path-graph.md)
+
 ## Support
 
 - **DSH**: `@deepseek-ai/dsh >= 0.1.0-rc.6` (Web profile).
