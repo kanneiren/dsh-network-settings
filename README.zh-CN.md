@@ -22,8 +22,8 @@ English: [README.md](README.md)
   配置不同但均正常时只提示，不警告。
 - 内置 DeepSeek / OpenAI / GitHub / npm Registry 目标。
 - Windows 只读检查：接口、IPv4/IPv6、网关、路由、DNS、DHCP、
-  WinINet 用户代理、WinHTTP 用户/机器代理、Process/User/Machine 代理环境
-  变量、DSH 进程环境、Hosts 覆盖、监听端口与进程。
+  WinINet 用户代理、WinHTTP 用户/机器代理、Windows 当前用户环境变量、
+  DSH 进程环境变量、Hosts 覆盖、监听端口与进程。
 - WSL 发现（`wsl.exe --list --verbose` 系列）：正确处理 UTF-16 输出、中文
   表头、名称含空格；**绝不自动启动 Stopped 发行版**。
 - 每个 Running 发行版：到 Windows Host、DNS、直连互联网、Windows 代理、

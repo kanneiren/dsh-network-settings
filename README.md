@@ -25,7 +25,7 @@ Open the page → see cached status → run single or stability check
 - Built-in DeepSeek / OpenAI / GitHub / npm Registry targets.
 - Read-only Windows network inspection: interfaces, IPv4/IPv6, gateways,
   routes, DNS, DHCP, WinINet user proxy, WinHTTP user/machine proxy,
-  Process/User/Machine proxy environment variables, DSH process environment,
+  current Windows user proxy environment variables, DSH process environment,
   Hosts overrides, listening ports/processes.
 - WSL discovery (`wsl.exe --list --verbose` family) with a parser that handles
   UTF-16 output, localized headers and distribution names with spaces.

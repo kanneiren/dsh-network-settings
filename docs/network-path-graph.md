@@ -6,9 +6,11 @@
 
 ```text
 网络配置
-├─ 代理：Windows 用户代理 / 环境变量代理 / PAC
-├─ DSH：运行环境 / 有效代理 / Process Environment / 配置来源
-├─ WSL：当前 Distribution / .wslconfig / /etc/wsl.conf / 其他发行版
+├─ Windows 代理：Windows 用户代理（WinINet）/
+│   当前 Windows 用户环境变量 / PAC
+├─ DSH：运行环境 / DSH 代理配置 / 配置来源 / 进程环境
+├─ WSL：当前 Distribution / 发行版环境变量 /
+│   .wslconfig / /etc/wsl.conf / 其他发行版
 └─ 高级网络：DNS / WinHTTP / 接口路由 / Hosts / 系统恢复
 ```
 
