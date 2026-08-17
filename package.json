@@ -4,6 +4,14 @@
   "description": "DSH Network Settings: Windows / WSL network status, diagnostics and safe repair for DeepSeek Harness.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kanneiren/dsh-network-settings.git"
+  },
+  "homepage": "https://github.com/kanneiren/dsh-network-settings#readme",
+  "bugs": {
+    "url": "https://github.com/kanneiren/dsh-network-settings/issues"
+  },
   "engines": {
     "node": ">=22.19.0"
   },
