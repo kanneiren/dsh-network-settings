@@ -106,13 +106,14 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
 
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configEnvVars')}</div>
+            <div className={css.detailMeta}>{t('envProxyNote')}</div>
             {(['process', 'user', 'machine', 'dsh'] as const).map(scope => {
               const entries = hasInspection ? envEntries(env[scope]) : []
               return (
                 <div key={scope} className={css.detailRow}>
                   <span className={css.detailName}>{t(scopeLabel(scope))}</span>
                   {!hasInspection ? <span className={css.detailMeta}>{t('unknownLabel')}</span> : null}
-                  {hasInspection && entries.length === 0 ? <span className={css.detailMeta}>{t('currentDisabled')}</span> : null}
+                  {hasInspection && entries.length === 0 ? <span className={css.detailMeta}>{t('envProxyNotSet')}</span> : null}
                   {entries.map(([name, value]) => (
                     <span key={name} className={css.detailMeta}>{name}={value}</span>
                   ))}
