@@ -314,7 +314,7 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
       {summary !== undefined && graph === undefined && state.phase !== 'loading' ? (
         <div className={css.summaryCard}>
           <div className={css.summaryHead}><span className={css.summaryText}>{t('networkGraphTitle')}</span><span className={css.muted}>{t('cached', { time: formatTime(state.cached?.timestamp ?? '') })}</span></div>
-          <div className={css.statusRow}><StateDot state={dotState(summary.dsh.status) ?? 'ongoing'} className={css.dot} /><span className={css.rowLabel}>{summary.dsh.label}</span><span className={css.rowStatus}>{statusLabel(summary.dsh.status, t)}</span></div>
+          <div className={css.statusRow}><StateDot state={dotState(summary.dsh.status) ?? 'ongoing'} className={css.dot} /><span className={css.rowLabel}>{t('linkLabel')}</span><span className={css.rowStatus}>{statusLabel(summary.dsh.status, t)}</span></div>
           <div className={css.actions}>
             <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(summary.target.id) }}>{t('run')}</Button>
             <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(summary.target.id) }}>{t('runStability')}</Button>
@@ -365,7 +365,7 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
       {state.error !== undefined && summary !== undefined ? <p className={css.errorText} role="alert">{state.error}</p> : null}
       {state.cancelled === true ? <p className={css.muted}>{t('cancel')}</p> : null}
 
-      {state.inspection === undefined && state.cached === undefined ? null : (
+      {state.inspection === undefined ? null : (
         <div className={css.disclosureList}>
           <DisclosureRow
             icon={<IconWarningOutline16 size={16} />}

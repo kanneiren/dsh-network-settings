@@ -143,7 +143,7 @@ export function NetworkGraph({ graph, summary, t }: NetworkGraphProps): ReactNod
         <div className={css.summaryRows}>
           <div className={css.summaryRow} data-status={summary.dsh.status}>
             <StateDot state={dotState(summary.dsh.status) ?? 'ongoing'} className={css.dot} />
-            <span className={css.summaryLabel}>{summary.dsh.label}</span>
+            <span className={css.summaryLabel}>{t('linkLabel')}</span>
             <span className={css.summaryStatus}>{statusLabel(summary.dsh.status, t)}</span>
           </div>
         </div>

@@ -89,7 +89,7 @@ function buildDirectPath(survey: GraphSurvey, adapter: WindowsInterface | undefi
   return {
     path: {
       id: 'dsh',
-      label: 'DSH',
+      label: '链路',
       status: pathStatusOfProbe(probe),
       egress: { mode: 'DIRECT' },
       nodes,
@@ -168,7 +168,7 @@ function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration, adapter
   return {
     path: {
       id: 'dsh',
-      label: 'DSH',
+      label: '链路',
       status: endpointFailed ? 'error' : pathStatusOfProbe(probe),
       egress: { mode: 'PROXY', proxyConfiguration: config, ...effectiveEndpoint === undefined ? {} : { proxyEndpoint: effectiveEndpoint } },
       nodes,

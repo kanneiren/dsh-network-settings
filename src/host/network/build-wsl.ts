@@ -122,7 +122,7 @@ function buildWslDirectPath(
   return {
     path: {
       id: 'dsh',
-      label: `DSH / ${runtime.registeredName ?? runtime.displayName}`,
+      label: `链路 / ${runtime.registeredName ?? runtime.displayName}`,
       status: pathStatusOfProbe(probe),
       egress: { mode: 'DIRECT' },
       nodes,
@@ -225,7 +225,7 @@ function buildWslProxyPath(
   return {
     path: {
       id: 'dsh',
-      label: `DSH / ${runtime.registeredName ?? runtime.displayName}`,
+      label: `链路 / ${runtime.registeredName ?? runtime.displayName}`,
       status: endpointFailed ? 'error' : pathStatusOfProbe(probe),
       egress: { mode: 'PROXY', proxyConfiguration: config, ...effectiveEndpoint === undefined ? {} : { proxyEndpoint: effectiveEndpoint } },
       nodes,
