@@ -149,15 +149,15 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             <div className={css.detailMeta}>{hasInspection || graph !== undefined ? dshRuntimeLabel(graph, t) : t('unknownLabel')}</div>
             <div className={css.detailName}>{t('dshEffectiveProxy')}</div>
             <div className={css.detailMeta}>{graph?.dshPath.egress.proxyConfiguration?.displayValue ?? graph?.dshPath.egress.mode ?? t('unknownLabel')}</div>
-            <div className={css.detailName}>{t('dshProcessEnv')}</div>
+            <div className={css.detailName}>{t('configSource')}</div>
+            <div className={css.detailMeta}>{graph?.dshPath.egress.proxyConfiguration?.source ?? (hasInspection ? t('sourceUnknown') : t('unknownLabel'))}</div>
+            <div className={css.groupLabel}>{t('dshProcessEnv')}</div>
             {(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'] as const).map(name => (
               <div key={name} className={css.detailRow}>
                 <span className={css.detailName}>{name}</span>
                 <span className={css.detailMeta}>{hasInspection ? (dshEnv[name] ?? t('currentDisabled')) : t('unknownLabel')}</span>
               </div>
             ))}
-            <div className={css.detailName}>{t('configSource')}</div>
-            <div className={css.detailMeta}>{graph?.dshPath.egress.proxyConfiguration?.source ?? (hasInspection ? t('sourceUnknown') : t('unknownLabel'))}</div>
             {staleDshProxy ? <div className={css.detailMeta}>{t('staleProxyHint')}</div> : null}
           </div>
         </div>
