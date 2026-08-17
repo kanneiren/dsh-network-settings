@@ -25,6 +25,16 @@ API="https://api.github.com"
 AUTH="Authorization: token ${GITHUB_TOKEN}"
 JSON_ACCEPT="Accept: application/vnd.github+json"
 
+echo "==> Validating GitHub token"
+USER_HTTP="$(curl -sS -o /tmp/dsh-gh-user.json -w '%{http_code}' -H "$AUTH" -H "$JSON_ACCEPT" "$API/user")"
+if [[ "$USER_HTTP" != "200" ]]; then
+  echo "GitHub token is invalid, expired, revoked, or lacks the repo scope. HTTP ${USER_HTTP}" >&2
+  echo "Create a classic token with the 'repo' scope at:" >&2
+  echo "  https://github.com/settings/tokens" >&2
+  exit 1
+fi
+echo "Authenticated as $(grep -o '"login":"[^"]*"' /tmp/dsh-gh-user.json | head -1)"
+
 echo "==> Checking repository ${OWNER}/${REPO}"
 STATUS="$(curl -sS -o /dev/null -w '%{http_code}' -H "$AUTH" -H "$JSON_ACCEPT" "$API/repos/${OWNER}/${REPO}")"
 if [[ "$STATUS" == "404" ]]; then
