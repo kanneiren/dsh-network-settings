@@ -43,6 +43,7 @@ echo "==> Setting remote and pushing ${BRANCH}"
 git remote remove origin 2>/dev/null || true
 git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${OWNER}/${REPO}.git"
 git push -u origin "$BRANCH:$BRANCH"
+git remote set-url origin "https://github.com/${OWNER}/${REPO}.git"
 
 echo "==> Creating release ${TAG}"
 curl -sS -X POST -H "$AUTH" -H "$JSON_ACCEPT" \
