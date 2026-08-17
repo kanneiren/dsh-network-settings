@@ -98,10 +98,28 @@ export function buildNetworkReport(options: BuildGraphOptions): BuiltNetworkRepo
     diagnostics: [],
     generatedAt: new Date().toISOString(),
   }
-  const diagnostics = detectDrift(graphBase, survey)
+  const diagnostics = [...detectDrift(graphBase, survey), ...pathFailureDiagnostics(graphBase)]
   const graph = withDriftRecommendation({ ...graphBase, diagnostics }, diagnostics)
   const summary = summarizeGraph(graph, diagnostics)
   return { graph, summary, targets, runtime }
+}
+
+export function pathFailureDiagnostics(graph: NetworkPathGraph): NetworkDiagnostic[] {
+  const failing = graph.dshPath.edges.find(edge => edge.status === 'error' || edge.status === 'warning')
+  if (failing === undefined) return []
+  const from = graph.dshPath.nodes.find(node => node.id === failing.from)
+  const to = graph.dshPath.nodes.find(node => node.id === failing.to)
+  return [{
+    code: 'DSH_PATH_FAILED',
+    severity: failing.status === 'error' ? 'error' : 'warning',
+    confidence: 0.95,
+    pathIds: ['dsh'],
+    humanMessage: `DSH 链路在 ${from?.label ?? failing.from} → ${to?.label ?? failing.to} 失败。`,
+    technicalMessage: failing.label ?? `${failing.from} → ${failing.to}`,
+    evidence: failing.evidence ?? [],
+    actions: [],
+    firstFailingEdge: { edgeId: `${failing.from}->${failing.to}`, from: from?.label ?? failing.from, to: to?.label ?? failing.to },
+  }]
 }
 
 export function summarizeGraph(graph: NetworkPathGraph, diagnostics: NetworkDiagnostic[] = graph.diagnostics): NetworkPathSummary {
