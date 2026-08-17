@@ -40,10 +40,29 @@ else
 fi
 
 echo "==> Setting remote and pushing ${BRANCH}"
+CLEAN_URL="https://github.com/${OWNER}/${REPO}.git"
+cleanup_remote() {
+  git remote set-url origin "$CLEAN_URL" 2>/dev/null || true
+}
+trap cleanup_remote EXIT
+
 git remote remove origin 2>/dev/null || true
 git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${OWNER}/${REPO}.git"
-git push -u origin "$BRANCH:$BRANCH"
-git remote set-url origin "https://github.com/${OWNER}/${REPO}.git"
+git fetch origin --prune || true
+
+REMOTE_AHEAD="$(git rev-list --left-right --count "$BRANCH"...origin/"$BRANCH" 2>/dev/null | awk '{print $2}')"
+if [[ -n "$REMOTE_AHEAD" && "$REMOTE_AHEAD" != "0" ]]; then
+  echo "Remote ${BRANCH} contains ${REMOTE_AHEAD} commit(s) not present locally."
+  read -rp "Force push local ${BRANCH} to GitHub? [y/N] " FORCE
+  if [[ "$FORCE" == "y" || "$FORCE" == "Y" ]]; then
+    git push --force-with-lease origin "$BRANCH:$BRANCH"
+  else
+    echo "Aborted before push." >&2
+    exit 1
+  fi
+else
+  git push -u origin "$BRANCH:$BRANCH"
+fi
 
 echo "==> Creating release ${TAG}"
 curl -sS -X POST -H "$AUTH" -H "$JSON_ACCEPT" \
