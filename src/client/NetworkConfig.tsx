@@ -106,7 +106,6 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
 
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configEnvVars')}</div>
-            <div className={css.detailMeta}>{t('envProxyNote')}</div>
             {(() => {
               const entries = hasInspection ? envEntries(env['user']) : []
               return (
