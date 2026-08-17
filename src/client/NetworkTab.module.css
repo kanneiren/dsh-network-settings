@@ -259,6 +259,16 @@
   padding-top: 0;
 }
 
+.configSubtitle {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
 .groupLabel {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;

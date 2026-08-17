@@ -151,7 +151,7 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             <div className={css.detailMeta}>{graph?.dshPath.egress.proxyConfiguration?.displayValue ?? graph?.dshPath.egress.mode ?? t('unknownLabel')}</div>
             <div className={css.detailName}>{t('configSource')}</div>
             <div className={css.detailMeta}>{graph?.dshPath.egress.proxyConfiguration?.source ?? (hasInspection ? t('sourceUnknown') : t('unknownLabel'))}</div>
-            <div className={css.groupLabel}>{t('dshProcessEnv')}</div>
+            <div className={css.configSubtitle}>{t('dshProcessEnv')}</div>
             {(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'] as const).map(name => (
               <div key={name} className={css.detailRow}>
                 <span className={css.detailName}>{name}</span>

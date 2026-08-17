@@ -133,7 +133,7 @@ export const zh = {
   pacAutoDetect: '自动检测（WPAD）',
   dshRuntime: '当前运行环境',
   dshEffectiveProxy: 'DSH 代理配置（本次检测采用）',
-  dshProcessEnv: 'Process Environment',
+  dshProcessEnv: '进程环境',
   sourceUnknown: '无法可靠确定',
   currentDistribution: '当前 Distribution',
   wslGlobalConfigFile: '.wslconfig',
