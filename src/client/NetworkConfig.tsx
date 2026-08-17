@@ -107,19 +107,19 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configEnvVars')}</div>
             <div className={css.detailMeta}>{t('envProxyNote')}</div>
-            {(['user', 'machine'] as const).map(scope => {
-              const entries = hasInspection ? envEntries(env[scope]) : []
+            {(() => {
+              const entries = hasInspection ? envEntries(env['user']) : []
               return (
-                <div key={scope} className={css.detailRow}>
-                  <span className={css.detailName}>{scope === 'user' ? t('envScopeUser') : t('envScopeMachine')}</span>
-                  {!hasInspection ? <span className={css.detailMeta}>{t('unknownLabel')}</span> : null}
+                <div className={css.detailRow}>
+                  <span className={css.detailName}>{t('envScopeUser')}</span>
+                  {!hasInspection ? <span className={css.detailMeta}>{t('notTestedLabel')}</span> : null}
                   {hasInspection && entries.length === 0 ? <span className={css.detailMeta}>{t('envProxyNotSet')}</span> : null}
                   {entries.map(([name, value]) => (
                     <span key={name} className={css.detailMeta}>{name}={value}</span>
                   ))}
                 </div>
               )
-            })}
+            })()}
             {staleDshProxy ? (
               <>
                 <div className={css.detailMeta}>{t('staleProxyHint')}</div>
@@ -145,6 +145,11 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
         onToggle={() => { toggle('dsh') }}
       >
         <div className={css.detailList}>
+          {!hasInspection && graph === undefined ? (
+            <div className={css.configCard}>
+              <div className={css.detailMeta}>{t('dshNotTested')}</div>
+            </div>
+          ) : (
           <div className={css.configCard}>
             <div className={css.detailName}>{t('dshRuntime')}</div>
             <div className={css.detailMeta}>{hasInspection || graph !== undefined ? dshRuntimeLabel(graph, t) : t('unknownLabel')}</div>
@@ -161,6 +166,7 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             ))}
             {staleDshProxy ? <div className={css.detailMeta}>{t('staleProxyHint')}</div> : null}
           </div>
+          )}
         </div>
       </DisclosureRow>
 
