@@ -5,3 +5,17 @@ lib/
 .DS_Store
 research/
 .research/
+*.tgz
+*.log
+coverage/
+playwright-report/
+test-results/
+.vscode/
+.idea/
+*.png
+*.jpg
+*.jpeg
+*.gif
+.env
+.env.*
+!.env.example

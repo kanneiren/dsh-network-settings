@@ -1,105 +1,35 @@
 # dsh-network-settings
 
-DSH Network Settings (DSH 网络设置) is a lightweight community plugin for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It adds a
-**Network** tab under **Settings → Plugins** for Windows + WSL environments.
+<p align="center">
+  Windows / WSL network path diagnostics and safe repair for
+  <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>.
+  <br/>
+  为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断与安全修复。
+</p>
 
-Chinese: [README.zh-CN.md](README.zh-CN.md)
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"/>
+  <img src="https://img.shields.io/badge/platform-Windows%20%2B%20WSL-3572A5" alt="Platform"/>
+</p>
 
-## What it does
+---
 
-```text
-Open the page → see cached status → run single or stability check
-→ understand the problem in plain language → copy an Agent-ready report
-→ apply a scoped, previewed and reversible fix when one exists
-```
+## Highlights
 
-- Dual network-model path graph: auto-detects `WINDOWS_NATIVE` /
-  `WSL_DISTRIBUTION`, renders the current DSH process network path, DNS side
-  branch and first-failure highlighting.
-- Separate single-check and stability-check actions; stability mode repeats
-  TCP/HTTP samples and shows success counts/failures in the graph.
-- One-click Agent-ready Markdown network report copy.
-- Configuration Drift detection: finds stale proxy configuration used by the
-  current DSH runtime; a mere difference that is healthy is reported as info.
-- Built-in DeepSeek / OpenAI / GitHub / npm Registry targets.
-- Read-only Windows network inspection: interfaces, IPv4/IPv6, gateways,
-  routes, DNS, DHCP, WinINet user proxy, WinHTTP user/machine proxy,
-  current Windows user proxy environment variables, DSH process environment,
-  Hosts overrides, listening ports/processes.
-- WSL discovery (`wsl.exe --list --verbose` family) with a parser that handles
-  UTF-16 output, localized headers and distribution names with spaces.
-  Stopped distributions are never started automatically.
-- Per-running-distribution checks: Windows host reachability, DNS, direct
-  internet, Windows proxy endpoint, proxy internet.
-- Model-service checks are HTTP reachability only (HEAD to the configured
-  base URL, no Authorization header): **no prompt is sent and no tokens are
-  consumed**.
-- Layered probes: DNS → TCP → TLS → HTTP(S), over DIRECT and PROXY paths.
-- Deterministic diagnosis (no LLM): stale DSH proxy env, proxy endpoint
-  unreachable/unusable, DNS failure, TLS failure, env scope conflicts, WSL
-  proxy unreachable, stale WSL autoProxy, Hosts overrides.
-- Hierarchical network configuration: Proxy / DSH / WSL / Advanced network
-  with progressive disclosure; before detection it shows UNKNOWN and hides
-  the WSL group.
-- Actions are chosen by source and risk: direct low-risk buttons, opening
-  native Windows settings, opening/copying config locations, and explicitly
-  confirmed system recovery. Persistent changes always flow through
-  Snapshot → Diff → Confirm → Apply → Re-detect.
-- Scoped configuration with preview + confirmation: WinINet, WinHTTP,
-  Windows environment variables, current DSH process. Machine-level changes
-  request UAC only when executed.
-- Snapshots before every persistent change; undo last change and rollback by
-  scope; redacted diagnostic report copy.
-- Advanced first aid as separate operations: `ipconfig /flushdns`,
-  `netsh winhttp reset proxy`, `netsh winsock reset`, `netsh int ip reset`.
+- **Two runtime models only** — automatically detects `WINDOWS_NATIVE` or
+  `WSL_DISTRIBUTION`; no manual Windows/WSL mode switch.
+- **DSH path graph** — shows the actual DSH network path, DNS side branch and
+  first failing edge.
+- **Configuration Drift** — finds stale proxy configuration without treating
+  healthy configuration differences as errors.
+- **Single / stability checks** — one-shot diagnostics plus repeated TCP/HTTP
+  sampling for unstable endpoints.
+- **Agent-ready report** — one click copies a Markdown report.
+- **Safe repair** — snapshot → diff → confirm → apply → re-detect, with
+  rollback for persistent changes.
+- **DSH-native UI** — uses DSH primitives and `--dsw-*` tokens only.
 
-## Docs
-
-- [Architecture](docs/architecture.md)
-- [Diagnostics](docs/diagnostics.md)
-- [Network first aid](docs/network-first-aid.md)
-- [Agent guide](docs/agent-guide.md)
-- [Release checklist](docs/release-checklist.md)
-- [Network path graph & drift](docs/network-path-graph.md)
-
-## Support
-
-- **DSH**: `@deepseek-ai/dsh >= 0.1.0-rc.6` (Web profile).
-- **Platforms**: Windows 10/11 with WSL; Windows + WSL is the target
-  environment. Other platforms show a degraded read-only page.
-- **Windows support range**: read-only inspection on standard user rights;
-  user-scoped repairs; machine-scoped repairs via explicit UAC.
-- **WSL support range**: WSL1/WSL2, any distribution. Capability detection is
-  used instead of distribution detection; identity is display-only.
-- **Permissions**: see [Permissions](#permissions).
-
-## Targets and the `:443` suffix
-
-The graph shows targets as `host:port`. `443` is the standard HTTPS port, so
-`api.deepseek.com:443` means `https://api.deepseek.com`. The plugin only sends
-DNS / TCP / TLS / HTTP HEAD probes; no prompt or credentials are sent.
-
-Built-in targets:
-
-| id | label | probe URL |
-|---|---|---|
-| `deepseek` | DeepSeek | `https://api.deepseek.com:443` |
-| `openai` | OpenAI | `https://api.openai.com:443` |
-| `github` | GitHub | `https://github.com:443` |
-| `npm-registry` | npm Registry | `https://registry.npmjs.org:443` |
-
-When DSH has an explicit model-service Base URL it is added as the current
-model service and becomes the default target.
-
-To add a target, edit `PUBLIC_TARGETS` in `src/host/network/index.ts`:
-
-```ts
-{ id: 'my-api', label: 'My API', host: 'example.com', port: 443,
-  url: 'https://example.com', kind: 'custom', display: 'example.com:443' },
-```
-
-Then rebuild with `npm run build` and restart DSH.
+---
 
 ## Install
 
@@ -107,54 +37,90 @@ Then rebuild with `npm run build` and restart DSH.
 dsh plugin --profile web add dsh-network-settings
 ```
 
-Then restart the DSH Web profile. The plugin declares `dsh.bundle`, so
-`dsh plugin` adds it to the profile bundle list automatically.
+Open **Settings → Plugins → Network**.
 
-For a git checkout, pin a commit and allow pnpm to run the package `prepare`
-script as described by `dsh plugin`'s output.
+---
 
-## Uninstall
+## Usage
 
-```powershell
-dsh plugin --profile web remove dsh-network-settings
+```text
+Open the page
+  → cached summary only, no probes run
+Click [Single check]
+  → full inspection + current target probe + DSH path graph
+Click [Stability check]
+  → repeated TCP/HTTP sampling
+Click [Copy network report]
+  → Markdown report for an Agent
 ```
 
-Then restart DSH. Snapshots and the last report remain under
-`$DSH_HOME/dsh-network-settings/` for inspection; delete that directory to
-remove all plugin data.
+---
 
-## Permissions
+## Docs
 
-| Operation | Permission |
+| Document | Content |
 |---|---|
-| Page open, status, full detection | None |
-| WinINet / WinHTTP user / User env / DSH process | Current user, no UAC |
-| Machine env / machine WinHTTP | UAC only when that operation is executed |
-| Starting a stopped WSL distribution | Only via the explicit `启动并检测` action |
+| [Architecture](docs/architecture.md) | modules, runtime models, probes, repair guarantees |
+| [Diagnostics](docs/diagnostics.md) | how results are produced and displayed |
+| [Network first aid](docs/network-first-aid.md) | operations, risks, reliability |
+| [Agent guide](docs/agent-guide.md) | development commands and extension points |
+| [Release checklist](docs/release-checklist.md) | publishing steps |
+| [Network path & drift](docs/network-path-graph.md) | graph/UI behavior details |
+
+---
+
+## 中文简介
+
+- 自动检测 **Windows 原生** 与 **WSL 发行版** 两种运行模型。
+- 展示当前 **DSH 进程** 的真实网络路径、DNS 侧支和第一个失败点。
+- 识别 **配置漂移**：代理配置不同但网络正常时只提示，不警告。
+- 支持 **单次检测** 与 **稳定性检测**。
+- 一键复制 **适合 Agent 的 Markdown 网络报告**。
+- 持久化修改遵循：**快照 → 预览 → 确认 → 应用 → 重新检测 → 可回滚**。
+
+---
+
+## 安装与使用（中文）
+
+```powershell
+dsh plugin --profile web add dsh-network-settings
+```
+
+打开 **设置 → 插件 → 网络**：
+
+```text
+打开页面         → 只显示缓存摘要，不执行探测
+[单次检测]       → 采集 + 当前目标探测 + DSH 链路图
+[稳定性检测]     → TCP/HTTP 重复采样
+[复制网络报告]   → 生成 Agent 可用的 Markdown 报告
+```
+
+---
+
+## 中文文档
+
+| 文档 | 内容 |
+|---|---|
+| [架构](docs/architecture.md) | 模块、运行模型、探测、修复保证 |
+| [诊断流程](docs/diagnostics.md) | 诊断结果如何产生与展示 |
+| [网络急救](docs/network-first-aid.md) | 操作、风险、可靠性 |
+| [Agent 指南](docs/agent-guide.md) | 开发命令与扩展点 |
+| [发布检查清单](docs/release-checklist.md) | 发布步骤 |
+| [网络路径图与漂移](docs/network-path-graph.md) | 图与 UI 行为细节 |
+
+---
+
+## Support
+
+- DSH: `@deepseek-ai/dsh >= 0.1.0-rc.6` (Web profile)
+- Platform: Windows 10/11 with WSL
+- All network checks are local and read-only unless you explicitly confirm a
+  change.
 
 ## Privacy
 
-All checks run locally. No configuration, IP, Hosts, proxy address, or report
-is uploaded; no telemetry is collected. Reports and snapshots are redacted
-(API keys, tokens, cookies, authorization values, passwords, URL/proxy
-credentials).
-
-## Troubleshooting
-
-- **Network tab is missing**: confirm the plugin is in the profile bundle list
-  and restart the Web profile.
-- **Page says `未检测`**: click `一键全面检测`. Opening the page only reads
-  cached results and static configuration by design.
-- **WSL shows `未运行`**: stopped distributions are never started
-  automatically. Use the explicit start-and-test action.
-- **A repair is disabled**: the plugin only applies high-confidence scoped
-  fixes. Expand `查看详情` and copy the diagnostic report for manual help.
-- **"Flush DNS" keeps being recommended**: the DNS problem is not cache
-  related (commonly VPN/proxy DNS split routing). Flushing again will not
-  help; copy the agent diagnostic report instead.
-- **Machine-scope repair failed**: accept the UAC prompt for that specific
-  operation, then retry.
+No telemetry. Reports and snapshots are redacted locally before persistence.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+[MIT](LICENSE)
