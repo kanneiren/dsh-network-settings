@@ -278,10 +278,14 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
       : defaultPick ?? summary?.target ?? targets[0]
   const effectiveTargetId = effectiveTarget?.id
 
+  const canCopy = state.inspection !== undefined || state.cached?.diagnosis !== undefined
   const onCopy = async (): Promise<void> => {
-    if (state.inspection === undefined) return
+    // In the cached state there is no inspection yet, but a diagnosis-only
+    // briefing is still valuable to paste to an agent.
+    if (!canCopy) return
+    const reportFor = state.diagnosis ?? state.cached?.diagnosis ?? report
     try {
-      await writeClipboard(buildDiagnosticReport(state.inspection, report, t, graph, summary))
+      await writeClipboard(buildDiagnosticReport(state.inspection, reportFor, graph, summary))
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1500)
     } catch {
@@ -353,7 +357,7 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
           <div className={css.actions}>
             <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(effectiveTargetId) }}>{t('run')}</Button>
             <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(effectiveTargetId ?? summary.target.id) }}>{t('runStability')}</Button>
-            {state.inspection === undefined ? null : <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button>}
+            {canCopy ? <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button> : null}
           </div>
         </div>
       ) : null}
@@ -373,7 +377,7 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
           <div className={css.actions}>
             <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(summary.target.id) }}>{t('run')}</Button>
             <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(summary.target.id) }}>{t('runStability')}</Button>
-            {state.inspection === undefined ? null : <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button>}
+            {canCopy ? <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button> : null}
           </div>
           <NetworkGraph graph={graph} summary={summary} t={t} />
           {state.inspection === undefined ? null : <NetworkConfig service={service} inspection={state.inspection} diagnosis={report} graph={graph} t={t} />}

@@ -80,7 +80,9 @@ export interface ProxyEndpoint {
   port: number
   protocol: string
   configured: boolean
-  listener?: { pid: number; processName: string }
+  /** Endpoint state as probed by the graph builder (USABLE/UNREACHABLE/…). */
+  state?: string
+  listener?: { pid: number; processName: string; state?: string }
 }
 
 export interface EnvironmentScopeSnapshot {
