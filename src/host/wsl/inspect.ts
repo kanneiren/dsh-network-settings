@@ -70,15 +70,20 @@ async function wslUtf16(args: readonly string[], options: InspectWslOptions, all
 
 export async function inspectWsl(options: InspectWslOptions = {}): Promise<WslInspection> {
   const rawErrors: ProbeCheck[] = []
-  let available = false
-  try {
-    const probe = await runCommand('wsl.exe', ['--version'], {
-      timeoutMs: options.timeoutMs ?? 10_000,
-      signal: options.signal,
-    })
-    available = probe.code === 0
-  } catch {
-    available = false
+  // Fixtures simulate a machine where WSL exists; the availability probe
+  // would otherwise spawn a real wsl.exe and fail on systems without it
+  // (e.g. the Linux CI runner).
+  let available = options.fixtures !== undefined
+  if (!available) {
+    try {
+      const probe = await runCommand('wsl.exe', ['--version'], {
+        timeoutMs: options.timeoutMs ?? 10_000,
+        signal: options.signal,
+      })
+      available = probe.code === 0
+    } catch {
+      available = false
+    }
   }
   if (!available) {
     // Inside a distribution, WSL facts are still obtainable locally even with

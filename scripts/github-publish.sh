@@ -77,17 +77,32 @@ else
 fi
 
 echo "==> Creating release ${TAG}"
-# Release body: the "## <tag>" section of CHANGELOG.md, else let GitHub
-# generate notes. JSON-escape the section via jq when available.
+# Release body: the "## <tag>" section of CHANGELOG.md (JSON-escaped via
+# node, which the script already depends on); fall back to generated notes.
 RELEASE_BODY="$(awk -v tag="## ${TAG}" '$0 == tag {found=1; next} found && /^## / {exit} found {print}' "$ROOT/CHANGELOG.md" 2>/dev/null || true)"
-if [[ -n "$RELEASE_BODY" ]] && command -v jq >/dev/null 2>&1; then
-  RELEASE_JSON="{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":$(printf '%s' "$RELEASE_BODY" | jq -Rs .)}"
+if [[ -n "$RELEASE_BODY" ]]; then
+  RELEASE_JSON="$(printf '%s' "$RELEASE_BODY" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>process.stdout.write(JSON.stringify({body:d})))')"
 else
-  RELEASE_JSON="{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"generate_release_notes\":true}"
+  RELEASE_JSON='{"generate_release_notes":true}'
 fi
-curl -sS -X POST -H "$AUTH" -H "$JSON_ACCEPT" \
+
+RELEASE_HTTP="$(curl -sS -o /tmp/dsh-gh-release.json -w '%{http_code}' -X POST -H "$AUTH" -H "$JSON_ACCEPT" \
   "$API/repos/${OWNER}/${REPO}/releases" \
-  -d "$RELEASE_JSON"
+  -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"target_commitish\":\"${BRANCH}\",${RELEASE_JSON:1:-1}}")"
+if [[ "$RELEASE_HTTP" == "422" ]]; then
+  # Release for this tag already exists (e.g. re-running the script):
+  # update its body instead of failing.
+  echo "==> Release ${TAG} already exists; updating its body"
+  RELEASE_ID="$(curl -sS -H "$AUTH" -H "$JSON_ACCEPT" "$API/repos/${OWNER}/${REPO}/releases/tags/${TAG}" | grep -o '"id": *[0-9]*' | head -1 | grep -o '[0-9]*')"
+  if [[ -n "$RELEASE_ID" ]]; then
+    curl -sS -X PATCH -H "$AUTH" -H "$JSON_ACCEPT" \
+      "$API/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}" \
+      -d "$RELEASE_JSON" >/dev/null
+  fi
+elif [[ "$RELEASE_HTTP" != "201" ]]; then
+  echo "Release creation returned HTTP ${RELEASE_HTTP}" >&2
+  exit 1
+fi
 
 echo
 echo "Done: https://github.com/${OWNER}/${REPO}/releases/tag/${TAG}"
