@@ -155,6 +155,8 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             <div className={css.detailMeta}>{hasInspection || graph !== undefined ? dshRuntimeLabel(graph, t) : t('unknownLabel')}</div>
             {(() => {
               const egress = graph?.dshPath.egress
+              const endpoint = egress?.proxyEndpoint
+              const listener = endpoint?.listener
               return (
                 <>
                   <div className={css.detailName}>{t('dshEgressMode')}</div>
@@ -163,6 +165,20 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
                       : (
                         <>
                           <div className={css.detailMeta}>{t('dshEgressProxy')}{egress.proxyConfiguration?.displayValue === undefined ? '' : ` · ${egress.proxyConfiguration.displayValue}`}</div>
+                          {(endpoint?.state === 'UNREACHABLE' || endpoint?.state === 'UNUSABLE') ? (
+                            <div className={css.errorText}>{t('dshEgressUnavailable')}</div>
+                          ) : null}
+                          {listener?.state === 'LISTENING' ? (
+                            <div className={css.detailRow}>
+                              <span className={css.detailName}>{t('dshListener')}</span>
+                              <span className={css.detailMeta}>{listener.processName ?? t('unknownLabel')}{listener.pid === undefined ? '' : ` · PID ${listener.pid}`}</span>
+                            </div>
+                          ) : listener?.state === 'NOT_FOUND' ? (
+                            <div className={css.detailRow}>
+                              <span className={css.detailName}>{t('dshListener')}</span>
+                              <span className={css.errorText}>{t('dshListenerMissing')}</span>
+                            </div>
+                          ) : null}
                           {egress.proxyConfiguration?.source === undefined ? null : (
                             <div className={css.detailRow}>
                               <span className={css.detailName}>{t('configSource')}</span>
