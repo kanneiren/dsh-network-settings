@@ -5,6 +5,7 @@ import { Button, DisclosureRow, IconCheckOutline16, Modal } from '@deepseek-ai/d
 import type { Diagnosis, HostsDeletePreview, HostsEntry, NetworkInspection, RepairOperation, RepairOperationPreview, RepairRecommendation, SnapshotRecord, WslProxyPreview, WslProxySource } from './contract.ts'
 import type { NetworkService } from './service.ts'
 import type { NetworkLocaleKey } from './locales.ts'
+import { MetaBadges } from './MetaBadges.tsx'
 import css from './NetworkTab.module.css'
 
 type T = (key: NetworkLocaleKey, params?: Record<string, string | number>) => string
@@ -130,12 +131,12 @@ export function RepairSection({ service, diagnoses, inspection, t }: RepairSecti
   const recommendedIds = new Set(recommendations.flatMap(recommendation => recommendation.operations.map(operation => operation.id)))
   const otherOperations = catalog.filter(operation => !recommendedIds.has(operation.id))
 
-  const metadata = (operation: RepairOperation): string => [
+  const metadataBadges = (operation: RepairOperation): string[] => [
     operation.scope,
-    `${operation.requiresAdmin ? t('advancedAdmin') : t('advancedNoAdmin')}`,
-    `${operation.requiresReboot ? t('advancedReboot') : t('advancedNoReboot')}`,
-    `${operation.recoverable ? t('advancedRecoverable') : t('advancedNotRecoverable')}`,
-  ].join(' · ')
+    ...(operation.requiresAdmin ? [t('advancedAdmin')] : []),
+    ...(operation.requiresReboot ? [t('advancedReboot')] : []),
+    operation.recoverable ? t('advancedRecoverable') : t('advancedNotRecoverable'),
+  ]
 
   return (
     <div className={css.configList}>
@@ -155,7 +156,7 @@ export function RepairSection({ service, diagnoses, inspection, t }: RepairSecti
                   {recentOperations.length > 0 ? <p className={css.muted}>{t('recentlyApplied', { label: recentOperations.map(operation => operation.label).join('、') })}</p> : null}
                   {freshOperations.length > 0 && freshOperations.length > 1 ? <div className={css.detailMeta}>{t('suggestedOrder')}</div> : null}
                   {freshOperations.map((operation, step) => (
-                    <OperationButton key={operation.id} operation={operation} metadata={metadata(operation)} label={t('advancedExecute')} recommended step={freshOperations.length > 1 ? step + 1 : undefined} onOperation={() => { void onOperation(operation) }} t={t} />
+                    <OperationButton key={operation.id} operation={operation} badges={metadataBadges(operation)} label={t('advancedExecute')} recommended step={freshOperations.length > 1 ? step + 1 : undefined} onOperation={() => { void onOperation(operation) }} t={t} />
                   ))}
                 </>
               )}
@@ -202,7 +203,7 @@ export function RepairSection({ service, diagnoses, inspection, t }: RepairSecti
       >
         <div className={css.detailList}>
           {otherOperations.map(operation => (
-            <OperationButton key={operation.id} operation={operation} metadata={metadata(operation)} label={t('advancedExecute')} onOperation={() => { void onOperation(operation) }} t={t} />
+            <OperationButton key={operation.id} operation={operation} badges={metadataBadges(operation)} label={t('advancedExecute')} onOperation={() => { void onOperation(operation) }} t={t} />
           ))}
         </div>
       </DisclosureRow>
@@ -242,7 +243,7 @@ export function RepairSection({ service, diagnoses, inspection, t }: RepairSecti
         )}
       >
         <div className={css.detailList}>
-          {pending?.kind === 'operation' ? <div className={css.technical}>{metadata(pending.operation)}</div> : null}
+          {pending?.kind === 'operation' ? <MetaBadges labels={metadataBadges(pending.operation)} /> : null}
           {pending?.kind === 'operation' && pending.preview.preview?.scopeDescription !== undefined ? <div className={css.technical}>{pending.preview.preview.scopeDescription}</div> : null}
           {pending?.kind === 'operation' && pending.preview.preview !== undefined
             ? pending.preview.preview.diffText.length === 0
@@ -258,9 +259,9 @@ export function RepairSection({ service, diagnoses, inspection, t }: RepairSecti
   )
 }
 
-function OperationButton({ operation, metadata, label, recommended = false, step, onOperation, t }: {
+function OperationButton({ operation, badges, label, recommended = false, step, onOperation, t }: {
   operation: RepairOperation
-  metadata: string
+  badges: string[]
   label: string
   recommended?: boolean
   step?: number
@@ -274,7 +275,7 @@ function OperationButton({ operation, metadata, label, recommended = false, step
         {recommended ? <span className={css.recommendedBadge}>{step === undefined ? t('recommended') : t('step', { step })}</span> : null}
       </div>
       <div className={css.detailMeta}>{operation.description}</div>
-      <div className={css.detailMeta}>{metadata}</div>
+      <MetaBadges labels={badges} />
       <Button variant="outline" size="sm" onClick={onOperation}>{label}</Button>
     </div>
   )

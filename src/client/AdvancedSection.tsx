@@ -5,6 +5,7 @@ import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { AdvancedAction } from './contract.ts'
 import type { NetworkService } from './service.ts'
 import type { NetworkLocaleKey } from './locales.ts'
+import { MetaBadges } from './MetaBadges.tsx'
 import css from './NetworkTab.module.css'
 
 type T = (key: NetworkLocaleKey, params?: Record<string, string | number>) => string
@@ -55,9 +56,12 @@ export function AdvancedSection({ service, t, embedded = false }: AdvancedSectio
         <div key={action.id} className={css.configCard}>
           <div className={css.detailName}>{action.label}</div>
           <div className={css.detailMeta}>{action.purpose}</div>
-          <div className={css.detailMeta}>
-            {t('advancedRisk', { risk: riskLabel(action.risk) })} · {action.requiresAdmin ? t('advancedAdmin') : t('advancedNoAdmin')} · {action.requiresReboot ? t('advancedReboot') : t('advancedNoReboot')} · {action.recoverable ? t('advancedRecoverable') : t('advancedNotRecoverable')}
-          </div>
+          <MetaBadges labels={[
+            t('advancedRisk', { risk: riskLabel(action.risk) }),
+            ...(action.requiresAdmin ? [t('advancedAdmin')] : []),
+            ...(action.requiresReboot ? [t('advancedReboot')] : []),
+            action.recoverable ? t('advancedRecoverable') : t('advancedNotRecoverable'),
+          ]} />
           <Button variant="outline" size="sm" onClick={() => { setPending(action) }}>{t('advancedExecute')}</Button>
         </div>
       ))}
@@ -78,9 +82,14 @@ export function AdvancedSection({ service, t, embedded = false }: AdvancedSectio
         )}
       >
         <div className={css.detailList}>
-          <div className={css.technical}>{pending?.requiresAdmin === true ? t('advancedAdmin') : t('advancedNoAdmin')}</div>
-          <div className={css.technical}>{pending?.requiresReboot === true ? t('advancedReboot') : t('advancedNoReboot')}</div>
-          <div className={css.technical}>{pending?.recoverable === true ? t('advancedRecoverable') : t('advancedNotRecoverable')}</div>
+          {pending === null ? null : (
+            <MetaBadges labels={[
+              t('advancedRisk', { risk: riskLabel(pending.risk) }),
+              ...(pending.requiresAdmin ? [t('advancedAdmin')] : []),
+              ...(pending.requiresReboot ? [t('advancedReboot')] : []),
+              pending.recoverable ? t('advancedRecoverable') : t('advancedNotRecoverable'),
+            ]} />
+          )}
         </div>
       </Modal>
     </div>

@@ -236,8 +236,11 @@ function DiagnosisDetails({ diagnoses, t }: { diagnoses: Diagnosis[]; t: T }): R
     <div className={css.detailList}>
       {diagnoses.map(item => (
         <div key={item.code} className={css.diagnosisCard}>
-          <div className={css.detailRow}><span className={css.detailName}>{item.humanMessage}</span><span className={css.detailMeta}>{statusLabel(item.severity === 'error' ? 'error' : 'warning', t)}</span></div>
-          <div className={css.technical}>Diagnostic Code: {item.code}</div>
+          <div className={css.diagnosisHead}>
+            <span className={css.detailName}>{item.humanMessage}</span>
+            <span className={css.detailTag}>{item.code}</span>
+            <span className={css.detailMeta}>{statusLabel(item.severity === 'error' ? 'error' : 'warning', t)}</span>
+          </div>
           <div className={css.technical}>{item.technicalMessage}</div>
           {item.evidence.map(evidence => <div key={evidence.ref} className={css.technical}>· {evidence.message} ({evidence.status})</div>)}
         </div>

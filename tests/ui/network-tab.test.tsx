@@ -157,7 +157,7 @@ describe('NetworkTab', () => {
     expect(screen.getByText('网络链路')).toBeTruthy()
     fireEvent.click(screen.getAllByText('诊断结果')[0]!)
     expect(screen.getByText('有 1 个目标的 TCP 连接正常，但 TLS 握手失败')).toBeTruthy()
-    expect(screen.getByText(/Diagnostic Code: TLS_FAILURE/)).toBeTruthy()
+    expect(screen.getByText('TLS_FAILURE')).toBeTruthy()
   })
 
   it('shows an RPC error without crashing the rest of the page', () => {

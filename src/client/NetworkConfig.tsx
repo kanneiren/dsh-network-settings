@@ -7,6 +7,7 @@ import type { NetworkService } from './service.ts'
 import type { NetworkLocaleKey } from './locales.ts'
 import { AdvancedSection } from './AdvancedSection.tsx'
 import css from './NetworkTab.module.css'
+import { MetaBadges } from './MetaBadges.tsx'
 
 type T = (key: NetworkLocaleKey, params?: Record<string, string | number>) => string
 
@@ -293,7 +294,14 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
         )}
       >
         <div className={css.detailList}>
-          <div className={css.technical}>{pending?.operation.scope}</div>
+          {pending?.operation === undefined ? null : (
+            <MetaBadges labels={[
+              pending.operation.scope,
+              ...(pending.operation.requiresAdmin ? [t('advancedAdmin')] : []),
+              ...(pending.operation.requiresReboot ? [t('advancedReboot')] : []),
+              pending.operation.recoverable ? t('advancedRecoverable') : t('advancedNotRecoverable'),
+            ]} />
+          )}
           {pending?.preview?.scopeDescription === undefined ? null : <div className={css.technical}>{pending.preview.scopeDescription}</div>}
           {pending?.advanced !== undefined ? (
             <div className={css.technical}>

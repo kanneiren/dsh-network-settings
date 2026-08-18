@@ -1,12 +1,19 @@
 /* Network settings tab. Only --dsw-alias-* semantic tokens are consumed so
- * DSH light/dark themes and third-party theme plugins apply automatically. */
+ * DSH light/dark themes and third-party theme plugins apply automatically.
+ *
+ * Conventions: type scale 16 / 14 / 13 / 12 (nothing below 12px — 11px is
+ * unreadable at the 125–150% scaling typical on laptops); 4px spacing grid;
+ * responsiveness via container queries on .section because the plugin lives
+ * inside the DSH settings dialog (dialog caps at 800px; measured breakpoints:
+ * panel ≈ window−48 below ~790px window width). */
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   max-width: 720px;
   color: var(--dsw-alias-label-primary);
+  container-type: inline-size;
 }
 
 .title {
@@ -30,7 +37,7 @@
   gap: 12px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 16px;
 }
 
 .summaryHead {
@@ -64,7 +71,7 @@
 .rowBody {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
 }
@@ -87,8 +94,8 @@
 .rowDetail {
   min-width: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
@@ -115,31 +122,37 @@
 .detailRow {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .detailName {
   color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 14px;
+  line-height: 22px;
   overflow-wrap: anywhere;
 }
 
 .detailMeta {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
   overflow-wrap: anywhere;
 }
 
 .detailTag {
   border: 1px solid var(--dsw-alias-border-l3);
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 1px 8px;
   color: var(--dsw-alias-label-secondary);
-  font-size: 11px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.metaBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .layer {
@@ -149,48 +162,46 @@
 .muted {
   margin: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .errorText {
   margin: 0;
   color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.successText {
+  margin: 0;
+  color: var(--dsw-alias-state-success-primary);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .technical {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
   overflow-wrap: anywhere;
-}
-
-@media (max-width: 560px) {
-  .actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .rowStatus {
-    white-space: normal;
-    text-align: right;
-  }
-
-  .summaryCard,
-  .configCard {
-    border-radius: 10px;
-  }
 }
 
 .diagnosisCard {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 8px 12px;
+}
+
+.diagnosisHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .subtitle {
@@ -204,32 +215,25 @@
 .configList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .configCard {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
-  padding: 12px 14px;
-}
-
-.successText {
-  margin: 0;
-  color: var(--dsw-alias-state-success-primary);
-  font-size: 12px;
-  line-height: 18px;
+  padding: 16px;
 }
 
 .operationCard {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
   border-top: 1px solid var(--dsw-alias-border-l2);
   padding-top: 8px;
 }
@@ -260,8 +264,8 @@
 }
 
 .configSubtitle {
-  margin-top: 6px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 12px;
   border-top: 1px solid var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
@@ -271,6 +275,40 @@
 
 .groupLabel {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* Container queries: the DSH settings dialog caps at 800px and tracks the
+ * window below that, so the panel width — not the viewport — drives layout.
+ * 480px matches a ~528px window, the point where action rows overflow. */
+@container (max-width: 479px) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowStatus {
+    white-space: normal;
+    text-align: right;
+  }
+
+  .summaryCard,
+  .configCard {
+    padding: 12px;
+    border-radius: 10px;
+  }
+}
+
+/* Viewport fallback for environments without container query support. */
+@media (max-width: 519px) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowStatus {
+    white-space: normal;
+    text-align: right;
+  }
 }
