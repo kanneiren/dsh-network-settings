@@ -31,10 +31,18 @@ pwsh scripts/dev-wsl-reload.ps1       # build + restart the WSL instance (port 3
 
 - Network Core is deterministic. No LLM in any diagnostic path.
 - UI must use DSH primitives and `--dsw-alias-*` tokens only.
+- UI conventions: type scale 16/14/13/12 (nothing below 12px), 4px spacing
+  grid (4/8/12/16), responsive behavior via container queries on
+  `.section` (the settings dialog caps at 800px — viewport breakpoints lie).
+  Operation metadata rows use `MetaBadges`, not joined sentences.
 - Client never executes platform commands; add an RPC endpoint in
   `src/host/index.ts` and a typed method in `src/client/service.ts`.
 - Every persistent change uses snapshot → preview → confirm → apply.
 - Secrets are redacted before persistence or RPC responses.
+- Release flow: bump `package.json`, add a `## <tag>` section to
+  `CHANGELOG.md`, run the gates, tag, then
+  `GITHUB_TOKEN=... bash scripts/github-publish.sh` (pushes main and
+  creates the GitHub Release from the changelog section).
 
 ## Diagnostic report contract
 

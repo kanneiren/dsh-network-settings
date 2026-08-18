@@ -2,17 +2,19 @@
 # Publish this repository to GitHub and create a release without `gh`.
 #
 # Usage:
-#   GITHUB_TOKEN=... bash scripts/github-publish.sh
+#   GITHUB_TOKEN=... bash scripts/github-publish.sh [owner] [repo] [tag]
 #   or run without GITHUB_TOKEN and enter it interactively (input is hidden).
+#   TAG defaults to the version in package.json; the release body is taken
+#   from the matching "## <tag>" section of CHANGELOG.md when present.
 #
 # Requires: git, curl, jq (jq is optional; the script degrades without it).
 set -euo pipefail
 
 OWNER="${1:-kanneiren}"
 REPO="${2:-dsh-network-settings}"
-TAG="${3:-v0.1.0}"
-BRANCH="main"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TAG="${3:-v$(node -p 'require("./package.json").version')}"
+BRANCH="main"
 
 if [[ -z "${GITHUB_TOKEN:-}" ]]; then
   read -rsp "GitHub personal access token (repo + contents): " GITHUB_TOKEN
@@ -75,9 +77,17 @@ else
 fi
 
 echo "==> Creating release ${TAG}"
+# Release body: the "## <tag>" section of CHANGELOG.md, else let GitHub
+# generate notes. JSON-escape the section via jq when available.
+RELEASE_BODY="$(awk -v tag="## ${TAG}" '$0 == tag {found=1; next} found && /^## / {exit} found {print}' "$ROOT/CHANGELOG.md" 2>/dev/null || true)"
+if [[ -n "$RELEASE_BODY" ]] && command -v jq >/dev/null 2>&1; then
+  RELEASE_JSON="{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":$(printf '%s' "$RELEASE_BODY" | jq -Rs .)}"
+else
+  RELEASE_JSON="{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"generate_release_notes\":true}"
+fi
 curl -sS -X POST -H "$AUTH" -H "$JSON_ACCEPT" \
   "$API/repos/${OWNER}/${REPO}/releases" \
-  -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"Initial public release of dsh-network-settings.\",\"generate_release_notes\":true}"
+  -d "$RELEASE_JSON"
 
 echo
 echo "Done: https://github.com/${OWNER}/${REPO}/releases/tag/${TAG}"

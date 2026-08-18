@@ -2,10 +2,10 @@
 
 ## Before publishing
 
-- [ ] Set the real GitHub repository URL in `package.json`:
-      `repository`, `homepage`, `bugs`.
-- [ ] Confirm the npm package name `dsh-network-settings` is available.
-- [ ] Choose the first release version (currently `0.1.0`).
+- [ ] Bump `version` in `package.json` and the probe `User-Agent` strings in
+      `src/host/probe/net.ts` to match.
+- [ ] Add a `## <tag>` section to `CHANGELOG.md` with user-facing changes
+      (this section becomes the GitHub Release body).
 - [ ] Review README/README.zh-CN for current behavior.
 - [ ] Run:
       ```bash
@@ -18,18 +18,30 @@
 - [ ] Install the packed tarball into an isolated DSH profile and verify
       Settings → Plugins → Network on Windows and WSL.
 - [ ] Ensure `lib/` is rebuilt and included in `files`.
+- [ ] Tag the release commit: `git tag -a v<version>`.
 
 ## Publishing
+
+GitHub (source + release):
+
+```bash
+GITHUB_TOKEN=<pat with repo scope> bash scripts/github-publish.sh
+```
+
+- Tag defaults to the `package.json` version; the release body is the
+  matching `CHANGELOG.md` section (falls back to generated notes).
+- The script pushes `main` (asks before force-push when remote history
+  diverged) and creates the GitHub Release via the API.
+
+npm (package):
 
 ```bash
 npm publish
 ```
 
 - [ ] Configure the npm token for GitHub Actions (`NPM_TOKEN`) if using CI.
-- [ ] Create a GitHub Release with the generated tarball/SHA.
 
 ## After publishing
 
 - [ ] Submit the plugin to the Awesome DSH Plugins list.
-- [ ] Tag the release commit (`v0.1.0`).
-- [ ] Update the changelog with user-facing behavior.
+- [ ] Verify the release page renders the changelog section correctly.
