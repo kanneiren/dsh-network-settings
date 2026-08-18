@@ -28,6 +28,13 @@ export function currentDistribution(runtime: WslDistributionRuntime, survey: Gra
   return running[0]
 }
 
+/** First non-loopback IPv4 of the distribution (ip -o addr lists `lo` first). */
+function linuxIpv4Of(distro: WslDistribution | undefined): string | undefined {
+  return distro?.network?.interfaces
+    ?.flatMap(item => item.ipv4)
+    .find(ip => !ip.startsWith('127.') && !ip.startsWith('169.254.'))
+}
+
 export function buildWslDshPath(survey: GraphSurvey): BuiltDshPath {
   const runtime = survey.runtime as WslDistributionRuntime
   const distro = currentDistribution(runtime, survey)
@@ -64,7 +71,7 @@ function buildWslDirectPath(
   const hostSegment = hostSegmentStatus(hostTcp, targetReached)
   const gatewayReachable = gatewayEvidenceOf(inspection.windows.network, targetReached, gatewayMeasured)
   const targetFailed = http === 'error' || tls === 'error' || tcp === 'error'
-  const linuxIp = distro?.network?.interfaces?.flatMap(item => item.ipv4)[0]
+  const linuxIp = linuxIpv4Of(distro)
   const hostAddress = hostAddressOf(distro)
 
   const nodes: PathNode[] = [
@@ -161,7 +168,7 @@ function buildWslProxyPath(
   const gatewayReachable = gatewayEvidenceOf(inspection.windows.network, http === 'healthy', gatewayMeasured)
   const endpointHealthy = endpointState === 'USABLE' || endpointState === 'REACHABLE'
   const endpointFailed = endpointState === 'UNREACHABLE' || endpointState === 'UNUSABLE'
-  const linuxIp = distro?.network?.interfaces?.flatMap(item => item.ipv4)[0]
+  const linuxIp = linuxIpv4Of(distro)
   const hostAddress = hostAddressOf(distro)
 
   const nodes: PathNode[] = [

@@ -120,8 +120,11 @@ fi
 
 # --- 4. relaunch the exact same command --------------------------------------
 cd "$LAUNCH_CWD" || cd "$HOME" || exit 1
-nohup $LAUNCH_CMD >> "$DSH_LOG" 2>&1 &
+# setsid is required: when the launching wsl.exe session exits, WSL sends
+# SIGTERM to the session's process group — nohup alone does not survive that.
+setsid nohup $LAUNCH_CMD >> "$DSH_LOG" 2>&1 < /dev/null &
 NEW=$!
+disown $NEW 2>/dev/null || true
 echo "launched pid: $NEW"
 
 # --- 5. verify ----------------------------------------------------------------
