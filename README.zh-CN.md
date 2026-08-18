@@ -1,5 +1,9 @@
 # dsh-network-settings
 
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a> | <a href="README.md">English</a>
+</p>
+
 DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断与安全修复。
 
 ## 特性

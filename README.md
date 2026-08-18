@@ -1,10 +1,12 @@
 # dsh-network-settings
 
 <p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
   Windows / WSL network path diagnostics and safe repair for
   <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>.
-  <br/>
-  为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断与安全修复。
 </p>
 
 <p align="center">
@@ -66,47 +68,6 @@ Click [Copy network report]
 | [Agent guide](docs/agent-guide.md) | development commands and extension points |
 | [Release checklist](docs/release-checklist.md) | publishing steps |
 | [Network path & drift](docs/network-path-graph.md) | graph/UI behavior details |
-
----
-
-## 中文简介
-
-- 自动检测 **Windows 原生** 与 **WSL 发行版** 两种运行模型。
-- 展示当前 **DSH 进程** 的真实网络路径、DNS 侧支和第一个失败点。
-- 识别 **配置漂移**：代理配置不同但网络正常时只提示，不警告。
-- 支持 **单次检测** 与 **稳定性检测**。
-- 一键复制 **适合 Agent 的 Markdown 网络报告**。
-- 持久化修改遵循：**快照 → 预览 → 确认 → 应用 → 重新检测 → 可回滚**。
-
----
-
-## 安装与使用（中文）
-
-```powershell
-dsh plugin --profile web add dsh-network-settings
-```
-
-打开 **设置 → 插件 → 网络**：
-
-```text
-打开页面         → 只显示缓存摘要，不执行探测
-[单次检测]       → 采集 + 当前目标探测 + DSH 链路图
-[稳定性检测]     → TCP/HTTP 重复采样
-[复制网络报告]   → 生成 Agent 可用的 Markdown 报告
-```
-
----
-
-## 中文文档
-
-| 文档 | 内容 |
-|---|---|
-| [架构](docs/architecture.md) | 模块、运行模型、探测、修复保证 |
-| [诊断流程](docs/diagnostics.md) | 诊断结果如何产生与展示 |
-| [网络急救](docs/network-first-aid.md) | 操作、风险、可靠性 |
-| [Agent 指南](docs/agent-guide.md) | 开发命令与扩展点 |
-| [发布检查清单](docs/release-checklist.md) | 发布步骤 |
-| [网络路径图与漂移](docs/network-path-graph.md) | 图与 UI 行为细节 |
 
 ---
 
