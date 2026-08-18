@@ -11,12 +11,12 @@ import { readJson, writeJson } from './runtime/store.ts'
 import { applyConfigure, previewConfigure, type ConfigureRequest } from './configure/index.ts'
 import { listSnapshots } from './snapshot/store.ts'
 import { actionToConfigureRequest, applyRepairOperation, previewRepairOperation, rollbackLatest, rollbackScope } from './repair/index.ts'
-import { diagnosisActionOperations, repairCatalog } from './repair/catalog.ts'
+import { diagnosisActionOperations, isRecommendableOperation, RECOMMEND_CONFIDENCE_THRESHOLD, repairCatalog } from './repair/catalog.ts'
 import { advancedCatalog, recentAdvancedActionIds, runAdvancedAction } from './repair/advanced.ts'
 import { applyWslProxySource, previewWslProxySource } from './repair/wsl-proxy.ts'
 import { inspectWslProxySources, type WslProxySource } from './wsl/sources.ts'
 import { deleteHostsEntry, previewHostsDelete, readHostsEntries, type HostsEntry } from './repair/hosts.ts'
-import type { DiagnosisAction } from './diagnose/model.ts'
+import type { Diagnosis, DiagnosisAction } from './diagnose/model.ts'
 import type { SnapshotScope } from './snapshot/store.ts'
 import { applyDshProxyConfig, readDshConfig } from './configure/dsh.ts'
 import { openConfigLocation, openWindowsProxySettings } from './configure/open.ts'
@@ -86,9 +86,12 @@ export function apply(ctx: HostContext): void {
       switch (endpoint) {
         case 'status': {
           const cached = await readJson<CachedReport>(LAST_REPORT_FILE)
+          // Targets are always returned so the target switcher is usable
+          // before the first check runs.
+          const fallbackTargets = buildTargets(collectModelServiceTargets(ctx.settings, ctx.llm)).targets
           return ok(cached === undefined
-            ? { status: 'not-tested', cached: false, timestamp: new Date().toISOString() }
-            : { status: 'ready', cached: true, timestamp: cached.timestamp, diagnosis: cached.diagnosis, summary: cached.summary, targets: cached.targets })
+            ? { status: 'not-tested', cached: false, timestamp: new Date().toISOString(), targets: fallbackTargets }
+            : { status: 'ready', cached: true, timestamp: cached.timestamp, diagnosis: cached.diagnosis, summary: cached.summary, targets: cached.targets ?? fallbackTargets })
         }
         case 'run': {
           const options = asObject(payload)
@@ -151,14 +154,32 @@ export function apply(ctx: HostContext): void {
           return ok({ operations: repairCatalog() })
         case 'repair/recommended': {
           const body = asObject(payload)
+          // Full diagnoses carry the confidence needed for the recommendation
+          // gate; the bare `actions` form is kept for older callers.
+          const diagnoses = Array.isArray(body['diagnoses']) ? body['diagnoses'] as Diagnosis[] : []
           const actions = Array.isArray(body['actions']) ? body['actions'] as DiagnosisAction[] : []
+          const sources: Array<{ confidence: number; actions: DiagnosisAction[] }> = diagnoses.length > 0
+            ? diagnoses.map(item => ({ confidence: item.confidence, actions: item.actions }))
+            : actions.map(action => ({ confidence: 1, actions: [action] }))
+          const seenOperations = new Set<string>()
           const recentlyApplied = await recentAdvancedActionIds()
+          const recommendations = []
+          for (const source of sources) {
+            if (source.confidence < RECOMMEND_CONFIDENCE_THRESHOLD) continue
+            const operations = source.actions
+              .flatMap(action => diagnosisActionOperations(action))
+              .filter(operation => isRecommendableOperation(operation.id))
+              .filter(operation => {
+                if (seenOperations.has(operation.id)) return false
+                seenOperations.add(operation.id)
+                return true
+              })
+            if (operations.length === 0 || source.actions.length === 0) continue
+            recommendations.push({ action: source.actions[0]!, operations })
+          }
           return ok({
             recentlyAppliedIds: [...recentlyApplied],
-            recommendations: actions.map(action => ({
-              action,
-              operations: diagnosisActionOperations(action),
-            })),
+            recommendations,
           })
         }
         case 'repair/preview': {
@@ -244,9 +265,21 @@ async function diagnoseFrom(inspection: NetworkInspection, graph?: NetworkPathGr
     ...inspection.wsl === undefined ? {} : { wsl: inspection.wsl },
     probes: inspection.probes,
     endpoints: inspection.windows.proxy.endpoints,
+    ...dshEgressOf(graph) === undefined ? {} : { dshEgress: dshEgressOf(graph) },
   })
   if (graph === undefined) return report
   return mergeGraphDiagnostics(report, graph)
+}
+
+/** The proxy endpoint the DSH path actually egresses through, or null when
+ *  the graph shows a direct path. undefined when no graph is available. */
+function dshEgressOf(graph: NetworkPathGraph | undefined): { host: string; port: number } | null | undefined {
+  if (graph === undefined) return undefined
+  const egress = graph.dshPath.egress
+  if (egress.mode !== 'PROXY') return null
+  const host = egress.proxyEndpoint?.host ?? egress.proxyConfiguration?.host
+  const port = egress.proxyEndpoint?.port ?? egress.proxyConfiguration?.port
+  return host === undefined || port === undefined ? null : { host, port }
 }
 
 /** Graph/Drift diagnostics are merged into the legacy report so the existing

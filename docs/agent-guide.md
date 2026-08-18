@@ -19,6 +19,14 @@ Windows/WSL read-only smoke:
 node --experimental-strip-types src/host/smoke.ts --no-probes --no-wsl
 ```
 
+Reload built code into a running DSH (both profiles link
+`node_modules/dsh-network-settings` to this checkout):
+
+```powershell
+pwsh scripts/dev-windows-reload.ps1   # build + restart the Windows instance (port 3091)
+pwsh scripts/dev-wsl-reload.ps1       # build + restart the WSL instance (port 3092)
+```
+
 ## Ground rules
 
 - Network Core is deterministic. No LLM in any diagnostic path.

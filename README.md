@@ -21,12 +21,18 @@
 - **Two runtime models only** — automatically detects `WINDOWS_NATIVE` or
   `WSL_DISTRIBUTION`; no manual Windows/WSL mode switch.
 - **DSH path graph** — shows the actual DSH network path, DNS side branch and
-  first failing edge.
+  first failing edge; a TUN/VPN adapter is chained with the physical uplink
+  NIC and the real gateway behind it.
 - **Configuration Drift** — finds stale proxy configuration without treating
   healthy configuration differences as errors.
 - **Single / stability checks** — one-shot diagnostics plus repeated TCP/HTTP
-  sampling for unstable endpoints.
+  sampling; DeepSeek is the default target and switching is always available.
+  Every probe layer and the whole check carry hard timeouts, so a broken
+  network never stalls the page.
 - **Agent-ready report** — one click copies a Markdown report.
+- **Recommended repairs** — only high-confidence diagnoses mapped to common
+  low-risk operations (clear proxy-residue env vars, disable system proxy,
+  flush DNS cache); admin and high-risk operations stay in the manual catalog.
 - **Safe repair** — snapshot → diff → confirm → apply → re-detect, with
   rollback for persistent changes.
 - **DSH-native UI** — uses DSH primitives and `--dsw-*` tokens only.

@@ -266,7 +266,17 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
   const graph = state.graph
   const summary = state.summary ?? state.cached?.summary
   const targets = state.targets ?? (summary === undefined ? [] : [summary.target])
-  const selectedTarget = summary?.target
+  const [pickedTargetId, setPickedTargetId] = useState<string | undefined>(undefined)
+  // Fresh sessions default to DeepSeek (the requested default target). Once a
+  // graph is displayed, the selection follows the graph's own target unless
+  // the user picked another one explicitly.
+  const defaultPick = targets.find(target => target.id === 'deepseek')
+  const effectiveTarget = pickedTargetId !== undefined
+    ? targets.find(target => target.id === pickedTargetId)
+    : graph !== undefined
+      ? summary?.target
+      : defaultPick ?? summary?.target ?? targets[0]
+  const effectiveTargetId = effectiveTarget?.id
 
   const onCopy = async (): Promise<void> => {
     if (state.inspection === undefined) return
@@ -284,6 +294,29 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
     void (targetId === undefined ? service.run() : service.runTarget(targetId))
   }
 
+  const pickTarget = (id: string): void => {
+    setPickedTargetId(id)
+    run(id)
+  }
+
+  const targetBar = targets.length === 0 ? null : (
+    <div className={graphCss.targetBar}>
+      <span className={graphCss.targetLabel}>{t('currentTarget')}</span>
+      <Menu
+        open={targetMenuOpen}
+        onClose={() => { setTargetMenuOpen(false) }}
+        onSelect={pickTarget}
+        selectedId={effectiveTarget?.id ?? 'deepseek'}
+        items={targets.map(target => ({ id: target.id, label: `${target.label} · ${target.display}` }))}
+        anchor={(
+          <Button variant="outline" size="sm" onClick={() => { setTargetMenuOpen(previous => !previous) }}>
+            {effectiveTarget === undefined ? t('currentTarget') : `${effectiveTarget.label} · ${effectiveTarget.display}`}
+          </Button>
+        )}
+      />
+    </div>
+  )
+
   return (
     <div className={css.section}>
       <h2 className={css.title}>{t('title')}</h2>
@@ -296,12 +329,13 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
             <span className={css.summaryText}>{phase === 'error' ? t('error') : t('notTested')}</span>
           </div>
           <p className={css.muted}>{t('standbyHint')}</p>
+          {targetBar}
           <div className={css.actions}>
             <Button
               variant="primary"
               disabled={phase === 'loading'}
               icon={phase === 'loading' ? undefined : <IconRefreshOutline16 size={16} />}
-              onClick={() => { run(selectedTarget?.id) }}
+              onClick={() => { run(effectiveTargetId) }}
             >
               {phase === 'loading' ? t('running') : t('run')}
             </Button>
@@ -315,9 +349,10 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
         <div className={css.summaryCard}>
           <div className={css.summaryHead}><span className={css.summaryText}>{t('networkGraphTitle')}</span><span className={css.muted}>{t('cached', { time: formatTime(state.cached?.timestamp ?? '') })}</span></div>
           <div className={css.statusRow}><StateDot state={dotState(summary.dsh.status) ?? 'ongoing'} className={css.dot} /><span className={css.rowLabel}>{t('linkLabel')}</span><span className={css.rowStatus}>{statusLabel(summary.dsh.status, t)}</span></div>
+          {targetBar}
           <div className={css.actions}>
-            <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(summary.target.id) }}>{t('run')}</Button>
-            <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(summary.target.id) }}>{t('runStability')}</Button>
+            <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(effectiveTargetId) }}>{t('run')}</Button>
+            <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(effectiveTargetId ?? summary.target.id) }}>{t('runStability')}</Button>
             {state.inspection === undefined ? null : <Button variant="outline" onClick={() => { void onCopy() }}>{copied ? t('copied') : t('copyNetworkReport')}</Button>}
           </div>
         </div>
@@ -334,21 +369,7 @@ export function NetworkTab({ service, t }: NetworkTabProps): ReactNode {
 
       {graph !== undefined && summary !== undefined ? (
         <>
-          <div className={graphCss.targetBar}>
-            <span className={graphCss.targetLabel}>{t('currentTarget')}</span>
-            <Menu
-              open={targetMenuOpen}
-              onClose={() => { setTargetMenuOpen(false) }}
-              onSelect={(id) => { run(id) }}
-              selectedId={summary.target.id}
-              items={targets.map(target => ({ id: target.id, label: `${target.label} · ${target.display}` }))}
-              anchor={(
-                <Button variant="outline" size="sm" onClick={() => { setTargetMenuOpen(previous => !previous) }}>
-                  {summary.target.label} · {summary.target.display}
-                </Button>
-              )}
-            />
-          </div>
+          {targetBar}
           <div className={css.actions}>
             <Button variant="primary" disabled={phase === 'loading'} onClick={() => { run(summary.target.id) }}>{t('run')}</Button>
             <Button variant="outline" disabled={phase === 'loading'} onClick={() => { void service.runStability(summary.target.id) }}>{t('runStability')}</Button>

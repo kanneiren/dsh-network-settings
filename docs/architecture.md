@@ -42,6 +42,8 @@ the host RPC channel with `authority: loopback`.
 | `wsl/*` | `wsl.exe` list parsing, `.wslconfig`, `/etc/wsl.conf`, distribution facts |
 | `probe/net.ts` | DNS/TCP/TLS/HTTP probes, repeated sampling for stability mode |
 | `probe/probe.ts` | DIRECT/PROXY orchestration and first-failure layer mapping |
+| `probe/wsl.ts` | In-distribution probes over `runWslScript` (local `/bin/sh` for the current distro, `wsl.exe` for others) |
+| `network/shared.ts` | Shared graph helpers: proxy resolution, endpoint/listener matching, adapter selection (egress + physical uplink), gateway evidence |
 | `diagnose/rules.ts` | Deterministic diagnosis rules |
 | `configure/*` | Scoped configuration with preview/snapshot/apply |
 | `repair/*` | Operation catalog, recommendations, WSL/Hosts repairs, advanced actions |
@@ -63,16 +65,37 @@ the host RPC channel with `authority: loopback`.
 
 ```text
 WINDOWS_NATIVE
-  DSH → Windows → [Proxy] → Adapter → Gateway → Internet → Target
+  DSH → Windows → [Proxy] → Adapter (TUN/VPN or physical) → [Physical uplink]
+       → Gateway → Internet → Target
 
 WSL_DISTRIBUTION
   DSH → Distribution → WSL Network (NAT/Mirrored/…) → Windows Host
-       → [Proxy] → Adapter → Gateway → Internet → Target
+       → [Proxy] → Adapter (TUN/VPN or physical) → [Physical uplink]
+       → Gateway → Internet → Target
 ```
 
 Distribution identity and WSL network layer are separate concepts. NAT is an
 edge translation semantic, never drawn as a fake server. Mirrored/Bridged/
 VirtioProxy keep their own edge relations.
+
+When a TUN/VPN adapter owns the default route (e.g. a proxy client's
+`198.18.0.0/15` virtual network), it stays the egress adapter — traffic really
+flows through it — but the graph also chains the physical uplink NIC and the
+physical gateway behind it, and the Windows host node shows the physical IP.
+ICMP/neighbor gateway evidence is only claimed for the gateway it was actually
+measured against.
+
+### Command execution per model
+
+- `WINDOWS_NATIVE`: Windows facts via one PowerShell invocation; WSL facts via
+  `wsl.exe`.
+- `WSL_DISTRIBUTION`: the current distribution's probes and facts run through
+  local `/bin/sh` (no interop round-trip, no re-entry hang); other
+  distributions via `cmd.exe → wsl.exe`. Windows-side operations (WinINet,
+  WinHTTP, env vars, DNS cache) still require Windows interop; when interop is
+  unavailable they fail with an actionable message instead of raw ENOENT, and
+  the current distribution is synthesized from local files so the graph keeps
+  working.
 
 ## Probe layers
 
@@ -88,6 +111,12 @@ HTTP HEAD
 
 Proxy paths delegate DNS to the proxy and use CONNECT for HTTPS targets.
 
+Timeouts are enforced at every level: each layer carries its own budget
+(DNS 4s, TCP 4s, TLS 6s, HTTP 8s — covering both response headers and body),
+canceled probes resolve instead of hanging (DNS uses a cancellable Resolver),
+and the whole inspection runs under one hard deadline (60s from the RPC entry,
+45s by default) so a broken network can never stall a check indefinitely.
+
 ## Configuration Drift
 
 A difference is not an error. Drift becomes a diagnostic only when:
@@ -97,6 +126,20 @@ A difference is not an error. Drift becomes a diagnostic only when:
 - WinHTTP still points at a port with no listener.
 
 Healthy configuration differences are reported as `info`.
+
+## Repair recommendation policy
+
+A repair button is marked "recommended" only when both hold:
+
+- the driving diagnosis has confidence ≥ 0.85 (`RECOMMEND_CONFIDENCE_THRESHOLD`),
+- the mapped operation is in the common-operation whitelist
+  (`flush-dns`, `clear-user-env-proxy`, `clear-wininet-user-proxy`,
+  `clear-winhttp-user-proxy`, `clear-dsh-process-proxy`).
+
+Admin/UAC, reboot-requiring and non-recoverable operations (machine env,
+WinHTTP machine reset, Winsock/TCP-IP resets, `wsl-autoproxy-enable`) never
+appear as recommendations; they stay in the manual catalog. Duplicate
+operations across diagnoses are deduplicated server-side.
 
 ## Repair guarantees
 

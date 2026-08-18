@@ -13,6 +13,7 @@ import { runCommand } from '../runtime/command.ts'
 import { decodeWslCommand, decodeWslUtf16 } from './encoding.ts'
 import { parseWslList } from './list.ts'
 import { parseWslConf, parseWslGlobalConfig } from './wslconfig.ts'
+import { wslVersionFromKernel } from '../network/runtime.ts'
 import { proxyEnvironmentOf } from '../windows/inspect.ts'
 
 export interface InspectWslOptions {
@@ -26,6 +27,8 @@ export interface InspectWslOptions {
     running: string
     verbose: string
     wslconfig: string
+    /** Simulate `wsl.exe --list --running` exiting non-zero (no running distros). */
+    runningFailed?: boolean
   }>
 }
 
@@ -41,12 +44,12 @@ function wslLaunch(args: readonly string[]): { file: string; args: string[] } {
   return { file: 'cmd.exe', args: ['/d', '/s', '/c', 'wsl.exe', ...args] }
 }
 
-async function wslUtf16(args: readonly string[], options: InspectWslOptions): Promise<string> {
+async function wslUtf16(args: readonly string[], options: InspectWslOptions, allowNonZero = false): Promise<string> {
   if (options.fixtures !== undefined) {
     if (args.includes('--version')) return options.fixtures.version ?? ''
     if (args.includes('--status')) return options.fixtures.status ?? ''
     if (args.includes('--quiet')) return options.fixtures.quiet ?? ''
-    if (args.includes('--running')) return options.fixtures.running ?? ''
+    if (args.includes('--running')) return options.fixtures.runningFailed === true ? '' : options.fixtures.running ?? ''
     if (args.includes('--verbose')) return options.fixtures.verbose ?? ''
   }
   const launch = wslLaunch(args)
@@ -56,7 +59,12 @@ async function wslUtf16(args: readonly string[], options: InspectWslOptions): Pr
     maxStdoutBytes: 2 * 1024 * 1024,
     encoding: 'utf16le',
   })
-  if (result.code !== 0) throw new Error(`wsl.exe ${args.join(' ')} failed: ${result.stderr.trim()}`)
+  if (result.code !== 0) {
+    // `--list --running` exits non-zero when no distribution is running; that
+    // is a valid "no running distros" result, not a discovery failure.
+    if (allowNonZero) return ''
+    throw new Error(`wsl.exe ${args.join(' ')} failed: ${result.stderr.trim()}`)
+  }
   return decodeWslUtf16(result.stdout).text
 }
 
@@ -73,6 +81,17 @@ export async function inspectWsl(options: InspectWslOptions = {}): Promise<WslIn
     available = false
   }
   if (!available) {
+    // Inside a distribution, WSL facts are still obtainable locally even with
+    // interop disabled or wsl.exe hanging; the graph must not degrade to
+    // "unknown" just because the Windows-side enumerator is unreachable.
+    const local = await synthesizeCurrentDistribution(options)
+    if (local !== undefined) {
+      return {
+        available: true,
+        distributions: [local],
+        rawErrors: [wslError('wsl.discover', new Error('wsl.exe interop unavailable; current distribution inspected locally'))],
+      }
+    }
     return { available: false, distributions: [], rawErrors: [wslError('wsl.discover', new Error('wsl.exe unavailable or failed'))] }
   }
 
@@ -81,7 +100,7 @@ export async function inspectWsl(options: InspectWslOptions = {}): Promise<WslIn
       wslUtf16(['--version'], options),
       wslUtf16(['--status'], options),
       wslUtf16(['--list', '--quiet'], options),
-      wslUtf16(['--list', '--running'], options),
+      wslUtf16(['--list', '--running'], options, true),
       wslUtf16(['--list', '--verbose'], options),
     ])
 
@@ -133,6 +152,14 @@ export async function inspectWsl(options: InspectWslOptions = {}): Promise<WslIn
       rawErrors,
     }
   } catch (error) {
+    const local = await synthesizeCurrentDistribution(options)
+    if (local !== undefined) {
+      return {
+        available: true,
+        distributions: [local],
+        rawErrors: [wslError('wsl.discover', error)],
+      }
+    }
     return { available: true, distributions: [], rawErrors: [wslError('wsl.discover', error)] }
   }
 }
@@ -224,15 +251,59 @@ interface DistroFacts {
 }
 
 async function inspectRunningDistribution(name: string, options: InspectWslOptions): Promise<DistroFacts> {
-  const launch = wslLaunch(['-d', name, '--', '/bin/sh'])
+  const text = await runDistroScript(name, options)
+  return parseDistroFacts(text)
+}
+
+/** Run DISTRO_SCRIPT in the named distribution. The distribution this process
+ *  runs in is inspected via local /bin/sh; others go through wsl.exe interop. */
+async function runDistroScript(name: string, options: InspectWslOptions): Promise<string> {
+  const launch = name === currentDistributionName()
+    ? { file: '/bin/sh', args: [] as string[] }
+    : wslLaunch(['-d', name, '--', '/bin/sh'])
   const result = await runCommand(launch.file, launch.args, {
     timeoutMs: WSL_DISTRO_TIMEOUT_MS,
     signal: options.signal,
     maxStdoutBytes: 512 * 1024,
     input: DISTRO_SCRIPT,
   })
-  if (result.code !== 0) throw new Error(`wsl.exe -d ${name} exited ${String(result.code)}: ${result.stderr.trim()}`)
-  return parseDistroFacts(decodeWslCommand(result.stdout))
+  if (result.code !== 0) throw new Error(`${launch.file} for ${name} exited ${String(result.code)}: ${result.stderr.trim()}`)
+  return decodeWslCommand(result.stdout)
+}
+
+/** Build the current distribution's entry from local files only (no interop). */
+async function synthesizeCurrentDistribution(options: InspectWslOptions): Promise<WslDistribution | undefined> {
+  const name = currentDistributionName()
+  if (name === undefined) return undefined
+  try {
+    const facts = parseDistroFacts(await runDistroScript(name, options))
+    const kernelText = await readFile('/proc/version', 'utf8').catch(() => '')
+    const wslVersion = wslVersionFromKernel(kernelText)
+    const globalConfig = await readGlobalWslConfig(options, '')
+    return {
+      name,
+      state: 'running',
+      ...wslVersion === undefined ? {} : { wslVersion },
+      default: true,
+      osMetadata: facts.osMetadata,
+      capabilities: facts.capabilities,
+      network: {
+        hostCandidates: hostCandidates(globalConfig, wslVersion, facts.defaultRoute, facts.resolvNameservers),
+        resolvConf: facts.resolvNameservers,
+        ...facts.defaultRoute === undefined ? {} : { defaultRoute: facts.defaultRoute },
+        interfaces: facts.interfaces,
+        environment: facts.environment,
+        ...facts.wslConf === undefined ? {} : { wslConf: facts.wslConf },
+        generatedBy: 'local-facts',
+      },
+    }
+  } catch {
+    return undefined
+  }
+}
+
+function currentDistributionName(): string | undefined {
+  return process.platform === 'linux' ? process.env['WSL_DISTRO_NAME'] : undefined
 }
 
 export function parseDistroFacts(text: string): DistroFacts {

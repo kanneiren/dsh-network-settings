@@ -160,6 +160,27 @@ export function findRepairOperation(id: string): RepairOperation | undefined {
   return REPAIR_OPERATIONS.find(operation => operation.id === id)
 }
 
+/**
+ * Recommendation policy: only common, high-reliability operations are ever
+ * surfaced as "recommended". They must be low-risk and match problems seen
+ * repeatedly in the field (proxy-software residue, stale DNS cache). Admin /
+ * reboot / non-recoverable operations stay in the manual catalog below.
+ */
+const RECOMMENDABLE_OPERATION_IDS: ReadonlySet<string> = new Set([
+  'flush-dns',
+  'clear-user-env-proxy',
+  'clear-wininet-user-proxy',
+  'clear-winhttp-user-proxy',
+  'clear-dsh-process-proxy',
+])
+
+/** Diagnoses below this confidence never drive a recommended button. */
+export const RECOMMEND_CONFIDENCE_THRESHOLD = 0.85
+
+export function isRecommendableOperation(id: string): boolean {
+  return RECOMMENDABLE_OPERATION_IDS.has(id)
+}
+
 /** Map a Phase 2 diagnosis action to one or more independent repair operations. */
 export function diagnosisActionOperations(action: DiagnosisAction): RepairOperation[] {
   const direct = findRepairOperation(action.code)
@@ -169,20 +190,19 @@ export function diagnosisActionOperations(action: DiagnosisAction): RepairOperat
     case 'PROXY_ENDPOINT_UNREACHABLE':
     case 'PROXY_CONFIGURED_BUT_UNUSABLE':
     case 'repair-proxy-endpoint':
-    case 'repair-proxy-usability':
-      return [
-        findRepairOperation('clear-dsh-process-proxy'),
-        findRepairOperation('clear-user-env-proxy'),
-        findRepairOperation('clear-wininet-user-proxy'),
-        findRepairOperation('clear-winhttp-user-proxy'),
-      ].filter((operation): operation is RepairOperation => operation !== undefined)
+    case 'repair-proxy-usability': {
+      // Suggest exactly the operation that touches the endpoint's own scope.
+      // A blanket "clear every proxy scope" list misled users into removing
+      // unrelated (and often healthy) proxy configuration.
+      const operation = proxyScopeOperation(action.scope)
+      return operation === undefined ? [] : [operation]
+    }
     case 'STALE_DSH_PROXY_ENV':
       return [findRepairOperation('clear-dsh-process-proxy')].filter((operation): operation is RepairOperation => operation !== undefined)
     case 'ENV_SCOPE_CONFLICT':
-      return [
-        findRepairOperation('clear-user-env-proxy'),
-        findRepairOperation('clear-machine-env-proxy'),
-      ].filter((operation): operation is RepairOperation => operation !== undefined)
+      // User-scope residue is the common proxy-software leftover. Machine-scope
+      // conflicts are rare and clearing them triggers UAC, so they stay manual.
+      return [findRepairOperation('clear-user-env-proxy')].filter((operation): operation is RepairOperation => operation !== undefined)
     case 'DNS_FAILURE':
     case 'repair-dns':
       return [findRepairOperation('flush-dns')].filter((operation): operation is RepairOperation => operation !== undefined)
@@ -199,5 +219,27 @@ export function diagnosisActionOperations(action: DiagnosisAction): RepairOperat
       return []
     default:
       return []
+  }
+}
+
+function proxyScopeOperation(scope: string): RepairOperation | undefined {
+  switch (scope) {
+    case 'wininet.user':
+      return findRepairOperation('clear-wininet-user-proxy')
+    case 'winhttp.user':
+      return findRepairOperation('clear-winhttp-user-proxy')
+    case 'winhttp.machine':
+      return findRepairOperation('reset-winhttp-machine-proxy')
+    case 'env.process':
+    case 'dsh.process':
+      return findRepairOperation('clear-dsh-process-proxy')
+    case 'env.user':
+    case 'windows.env.user':
+      return findRepairOperation('clear-user-env-proxy')
+    case 'env.machine':
+    case 'windows.env.machine':
+      return findRepairOperation('clear-machine-env-proxy')
+    default:
+      return undefined
   }
 }

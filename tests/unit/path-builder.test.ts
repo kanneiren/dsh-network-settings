@@ -99,6 +99,35 @@ describe('Windows native DSH path builder', () => {
     assert.equal(graph.dshPath.firstFailingEdgeId, 'dsh:host->dsh:proxy')
     assert.ok(graph.diagnostics.some(item => item.code === 'DRIFT_DSH_PROXY_STALE'))
   })
+
+  it('chains the physical uplink behind a TUN/VPN egress adapter', () => {
+    const base = windowsInspection({})
+    const inspection = {
+      ...base,
+      windows: {
+        ...base.windows,
+        network: {
+          interfaces: [
+            { name: 'BoostNet', description: 'BoostNet TUN', status: 'up' as const, virtual: true, kind: 'vpn' as const, ipv4: ['198.18.0.1'], ipv6: [], gateways: ['198.18.0.2'], dns: [], interfaceIndex: 5 },
+            { name: 'WLAN', description: 'Intel Wi-Fi', status: 'up' as const, virtual: false, kind: 'wi-fi' as const, ipv4: ['192.168.31.236'], ipv6: [], gateways: ['192.168.31.1'], dns: ['192.168.31.1'], interfaceIndex: 12 },
+          ],
+          defaultRoutes: [
+            { family: 4 as const, destination: '0.0.0.0/0', nextHop: '198.18.0.2', interfaceIndex: 5, metric: 1 },
+            { family: 4 as const, destination: '0.0.0.0/0', nextHop: '192.168.31.1', interfaceIndex: 12, metric: 30 },
+          ],
+        },
+      },
+      probes: [directHealthyProbe()],
+    }
+    const built = buildWindowsNativeDshPath(windowsSurvey(inspection))
+    const nodeById = new Map(built.path.nodes.map(node => [node.id, node]))
+    assert.equal(nodeById.get('dsh:adapter')?.address, '198.18.0.1')
+    assert.equal(nodeById.get('dsh:uplink')?.address, '192.168.31.236')
+    assert.equal(nodeById.get('dsh:gateway')?.address, '192.168.31.1')
+    assert.equal(nodeById.get('dsh:host')?.address, '192.168.31.236')
+    assert.ok(built.path.edges.some(edge => edge.from === 'dsh:adapter' && edge.to === 'dsh:uplink'))
+    assert.ok(built.path.edges.some(edge => edge.from === 'dsh:uplink' && edge.to === 'dsh:gateway'))
+  })
 })
 
 function wslRuntime(): WslDistributionRuntime {

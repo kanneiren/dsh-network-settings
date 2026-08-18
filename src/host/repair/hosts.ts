@@ -13,8 +13,20 @@ export interface HostsEntry {
 }
 
 export function hostsPath(): string {
+  if (process.platform === 'linux') return '/mnt/c/Windows/System32/drivers/etc/hosts'
   const root = process.env['SystemRoot'] ?? 'C:\\Windows'
   return join(root, 'System32', 'drivers', 'etc', 'hosts')
+}
+
+/**
+ * Windows-side form of a hosts path. Reading works from WSL via /mnt/c, but
+ * elevated PowerShell fallback scripts run on the Windows side and need the
+ * native drive-letter form.
+ */
+export function windowsHostsPath(path = hostsPath()): string {
+  const mount = /^\/mnt\/([a-z])\/(.*)$/i.exec(path)
+  if (mount === null) return path
+  return `${(mount[1] ?? 'c').toUpperCase()}:\\${(mount[2] ?? '').replaceAll('/', '\\')}`
 }
 
 export function parseHostsEntries(text: string): HostsEntry[] {
@@ -63,10 +75,13 @@ async function backupAndWrite(path: string, text: string): Promise<string> {
     // Elevated fallback: backup first, then copy a temp file over hosts.
     const temp = `${path}.dsh-network-settings.tmp`
     await writeFile(temp, text, 'utf8')
+    const winPath = windowsHostsPath(path)
+    const winBackup = windowsHostsPath(backup)
+    const winTemp = windowsHostsPath(temp)
     const script = String.raw`
-      Copy-Item -LiteralPath '${path.replaceAll("'", "''")}' -Destination '${backup.replaceAll("'", "''")}' -Force
-      Copy-Item -LiteralPath '${temp.replaceAll("'", "''")}' -Destination '${path.replaceAll("'", "''")}' -Force
-      Remove-Item -LiteralPath '${temp.replaceAll("'", "''")}' -Force
+      Copy-Item -LiteralPath '${winPath.replaceAll("'", "''")}' -Destination '${winBackup.replaceAll("'", "''")}' -Force
+      Copy-Item -LiteralPath '${winTemp.replaceAll("'", "''")}' -Destination '${winPath.replaceAll("'", "''")}' -Force
+      Remove-Item -LiteralPath '${winTemp.replaceAll("'", "''")}' -Force
     `
     try {
       await runElevatedPowerShell(script)
@@ -126,7 +141,7 @@ export async function rollbackHostsSnapshot(snapshot: {
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code !== 'EACCES' && code !== 'EPERM' && code !== 'ENOENT') throw error
-    const script = String.raw`Copy-Item -LiteralPath '${backup.replaceAll("'", "''")}' -Destination '${before.file.replaceAll("'", "''")}' -Force`
+    const script = String.raw`Copy-Item -LiteralPath '${windowsHostsPath(backup).replaceAll("'", "''")}' -Destination '${windowsHostsPath(before.file).replaceAll("'", "''")}' -Force`
     await runElevatedPowerShell(script)
     restored = true
   }

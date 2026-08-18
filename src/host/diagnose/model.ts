@@ -48,6 +48,14 @@ export interface DiagnosisInput {
   wsl?: WslInspection
   probes: LayeredProbe[]
   endpoints: ProxyEndpoint[]
+  /**
+   * The proxy endpoint the DSH process actually uses for its egress, when the
+   * graph is available. `null` means DSH egresses directly without a proxy;
+   * `undefined` means unknown (graphless callers keep legacy behavior).
+   * Proxy-endpoint rules only fire for the endpoint DSH really uses: a proxy
+   * configured in some Windows scope but unused by DSH is not a DSH problem.
+   */
+  dshEgress?: { host: string; port: number } | null
 }
 
 export interface RuleResult {

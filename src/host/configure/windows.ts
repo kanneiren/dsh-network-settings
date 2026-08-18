@@ -43,6 +43,13 @@ ${patch.proxyServer === undefined ? '' : `Set-ItemProperty -Path '${INTERNET_SET
 ${patch.proxyOverride === undefined ? '' : `Set-ItemProperty -Path '${INTERNET_SETTINGS}' -Name ProxyOverride -Value '${escapePs(patch.proxyOverride)}'`}
 ${patch.autoConfigUrl === undefined ? '' : `Set-ItemProperty -Path '${INTERNET_SETTINGS}' -Name AutoConfigURL -Value '${escapePs(patch.autoConfigUrl)}'`}
 Set-ItemProperty -Path '${INTERNET_SETTINGS}' -Name AutoDetect -Value $${patch.autoDetect ? 'true' : 'false'}
+$notify = @'
+[DllImport("wininet.dll", SetLastError = true)]
+public static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);
+'@
+Add-Type -MemberDefinition $notify -Name Wininet -Namespace DshNetworkSettings 2>$null
+[DshNetworkSettings.Wininet]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0) | Out-Null
+[DshNetworkSettings.Wininet]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
 `
   const result = await runPowerShell(script, { signal, timeoutMs: 15_000 })
   if (result.code !== 0) throw new Error(result.stderr.trim() || `WinINet update failed: ${String(result.code)}`)

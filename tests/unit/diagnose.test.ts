@@ -58,8 +58,8 @@ function wslWith(distro: Partial<WslDistribution>): WslInspection {
   }
 }
 
-function input(windows: WindowsInspection, probes: LayeredProbe[], wsl?: WslInspection, endpoints: ProxyEndpoint[] = []): DiagnosisInput {
-  return { windows, probes, ...wsl === undefined ? {} : { wsl }, endpoints }
+function input(windows: WindowsInspection, probes: LayeredProbe[], wsl?: WslInspection, endpoints: ProxyEndpoint[] = [], dshEgress?: { host: string; port: number } | null): DiagnosisInput {
+  return { windows, probes, ...wsl === undefined ? {} : { wsl }, endpoints, ...dshEgress === undefined ? {} : { dshEgress } }
 }
 
 describe('ruleProxyEndpointUnreachable', () => {
@@ -86,6 +86,38 @@ describe('ruleProxyEndpointUnreachable', () => {
     const result = ruleProxyEndpointUnreachable(input(baseWindows(), [], undefined, [ep]))
     assert.equal(result.length, 0)
   })
+
+  it('does not fire for proxies DSH does not use (direct egress)', () => {
+    const ep = endpoint('wininet.user')
+    const result = ruleProxyEndpointUnreachable(input(baseWindows(), [probe('github-proxy', 'github.com', 'proxy', {
+      tcp: check('error', 'connection refused', { host: '127.0.0.1', port: 7890 }),
+    })], undefined, [ep], null))
+    assert.equal(result.length, 0)
+  })
+
+  it('does not fire when DSH egresses through a different endpoint', () => {
+    const ep = endpoint('wininet.user')
+    const result = ruleProxyEndpointUnreachable(input(baseWindows(), [probe('github-proxy', 'github.com', 'proxy', {
+      tcp: check('error', 'connection refused', { host: '127.0.0.1', port: 7890 }),
+    })], undefined, [ep], { host: '127.0.0.1', port: 7891 }))
+    assert.equal(result.length, 0)
+  })
+
+  it('fires when the failing endpoint is exactly the DSH egress', () => {
+    const ep = endpoint('env.process')
+    const result = ruleProxyEndpointUnreachable(input(baseWindows(), [probe('github-proxy', 'github.com', 'proxy', {
+      tcp: check('error', 'connection refused', { host: '127.0.0.1', port: 7890 }),
+    })], undefined, [ep], { host: '127.0.0.1', port: 7890 }))
+    assert.equal(result.length, 1)
+  })
+
+  it('treats localhost and 127.0.0.1 as the same egress endpoint', () => {
+    const ep = endpoint('env.process', '127.0.0.1', 7890)
+    const result = ruleProxyEndpointUnreachable(input(baseWindows(), [probe('github-proxy', 'github.com', 'proxy', {
+      tcp: check('error', 'connection refused', { host: '127.0.0.1', port: 7890 }),
+    })], undefined, [ep], { host: 'localhost', port: 7890 }))
+    assert.equal(result.length, 1)
+  })
 })
 
 describe('ruleProxyConfiguredButUnusable', () => {
@@ -106,6 +138,24 @@ describe('ruleProxyConfiguredButUnusable', () => {
       http: check('healthy', '200', { host: '127.0.0.1', port: 7890 }),
     })], undefined, [ep]))
     assert.equal(result.length, 0)
+  })
+
+  it('does not fire for proxies DSH does not use (direct egress)', () => {
+    const ep = endpoint('wininet.user')
+    const result = ruleProxyConfiguredButUnusable(input(baseWindows(), [probe('github-proxy', 'github.com', 'proxy', {
+      tcp: check('healthy', 'ok', { host: '127.0.0.1', port: 7890 }),
+      http: check('error', '502 through proxy', { host: '127.0.0.1', port: 7890, proxy: '127.0.0.1:7890' }),
+    })], undefined, [ep], null))
+    assert.equal(result.length, 0)
+  })
+
+  it('fires when the unusable endpoint is the DSH egress', () => {
+    const ep = endpoint('env.process')
+    const result = ruleProxyConfiguredButUnusable(input(baseWindows(), [probe('github-proxy', 'github.com', 'proxy', {
+      tcp: check('healthy', 'ok', { host: '127.0.0.1', port: 7890 }),
+      http: check('error', '502 through proxy', { host: '127.0.0.1', port: 7890, proxy: '127.0.0.1:7890' }),
+    })], undefined, [ep], { host: '127.0.0.1', port: 7890 }))
+    assert.equal(result.length, 1)
   })
 })
 

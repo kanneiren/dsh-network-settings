@@ -37,10 +37,32 @@ function distinct<T>(values: readonly T[]): T[] {
 
 // ── Proxy endpoint rules ────────────────────────────────────────────────────
 
+function normalizeProxyHost(host: string): string {
+  const lower = host.toLowerCase()
+  return lower === 'localhost' ? '127.0.0.1' : lower
+}
+
+function sameProxyEndpoint(left: { host: string; port: number }, right: { host: string; port: number }): boolean {
+  return normalizeProxyHost(left.host) === normalizeProxyHost(right.host) && left.port === right.port
+}
+
+/**
+ * Only the proxy endpoint DSH actually egresses through can break the DSH
+ * link. A proxy configured in some Windows scope but unused by DSH (e.g. the
+ * VPN's system proxy while DSH egresses directly) is not a DSH problem, so
+ * those endpoints never produce error diagnoses or repair suggestions.
+ */
+function endpointUsedByDsh(endpoint: ProxyEndpoint, input: DiagnosisInput): boolean {
+  if (input.dshEgress === undefined) return true // graph unavailable: legacy standalone behavior
+  if (input.dshEgress === null) return false // DSH egresses directly
+  return sameProxyEndpoint(endpoint, input.dshEgress)
+}
+
 export function ruleProxyEndpointUnreachable(input: DiagnosisInput): RuleResult[] {
   const results: RuleResult[] = []
   for (const endpoint of input.endpoints) {
     if (!endpoint.configured) continue
+    if (!endpointUsedByDsh(endpoint, input)) continue
     const tcp = input.probes
       .filter(probe => probe.path === 'proxy')
       .map(probe => layerCheck(probe, 'tcp'))
@@ -64,6 +86,7 @@ export function ruleProxyConfiguredButUnusable(input: DiagnosisInput): RuleResul
   const results: RuleResult[] = []
   for (const endpoint of input.endpoints) {
     if (!endpoint.configured) continue
+    if (!endpointUsedByDsh(endpoint, input)) continue
     const proxyProbes = input.probes.filter(probe => probe.path === 'proxy' && endpointMatches(layerCheck(probe, 'tcp'), endpoint))
     if (proxyProbes.length === 0) continue
     const tcp = layerCheck(proxyProbes[0]!, 'tcp')

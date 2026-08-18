@@ -157,12 +157,18 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             <div className={css.detailName}>{t('configSource')}</div>
             <div className={css.detailMeta}>{graph?.dshPath.egress.proxyConfiguration?.source ?? (hasInspection ? t('sourceUnknown') : t('unknownLabel'))}</div>
             <div className={css.configSubtitle}>{t('dshProcessEnv')}</div>
-            {(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'] as const).map(name => (
-              <div key={name} className={css.detailRow}>
-                <span className={css.detailName}>{name}</span>
-                <span className={css.detailMeta}>{hasInspection ? (dshEnv[name] ?? t('envProxyNotSet')) : t('unknownLabel')}</span>
-              </div>
-            ))}
+            {(() => {
+              const entries = hasInspection ? envEntries(dshEnv) : []
+              if (!hasInspection) return <div className={css.detailMeta}>{t('unknownLabel')}</div>
+              if (entries.length === 0) return <div className={css.detailMeta}>{t('envProxyNotSet')}</div>
+              return entries.map(([name, value]) => (
+                <div key={name} className={css.detailRow}>
+                  <span className={css.detailName}>{name}</span>
+                  <span className={css.detailMeta}>{value}</span>
+                </div>
+              ))
+            })()}
+            {graph?.runtime.type === 'WSL_DISTRIBUTION' ? <div className={css.detailMeta}>{t('dshEnvCaseHint')}</div> : null}
             {staleDshProxy ? <div className={css.detailMeta}>{t('staleProxyHint')}</div> : null}
           </div>
           )}
@@ -254,10 +260,17 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             <div className={css.detailName}>{t('configHosts')}</div>
             {!hasInspection ? <div className={css.detailMeta}>{t('unknownLabel')}</div> : null}
             {hostsFor(data, graph).map(entry => <div key={entry.raw} className={css.detailMeta}>{entry.raw}</div>)}
-            <div className={css.actions}>
-              <Button variant="outline" size="sm" onClick={() => { void openLocation('hosts') }}>{t('openConfigLocation')}</Button>
-              <Button variant="outline" size="sm" onClick={() => { void copyPath('C:\\Windows\\System32\\drivers\\etc\\hosts') }}>{copiedPath === 'C:\\Windows\\System32\\drivers\\etc\\hosts' ? t('copied') : t('copyPath')}</Button>
-            </div>
+            {(() => {
+              const hostsPath = data.runtime.platform === 'linux'
+                ? '/mnt/c/Windows/System32/drivers/etc/hosts'
+                : 'C:\\Windows\\System32\\drivers\\etc\\hosts'
+              return (
+                <div className={css.actions}>
+                  <Button variant="outline" size="sm" onClick={() => { void openLocation('hosts') }}>{t('openConfigLocation')}</Button>
+                  <Button variant="outline" size="sm" onClick={() => { void copyPath(hostsPath) }}>{copiedPath === hostsPath ? t('copied') : t('copyPath')}</Button>
+                </div>
+              )
+            })()}
           </div>
           <AdvancedSection service={service} t={t} embedded />
         </div>

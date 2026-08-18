@@ -41,11 +41,17 @@ export interface DnsProbeResult {
 export async function probeDns(host: string, options: ProbeTimerOptions = {}): Promise<ProbeCheck & DnsProbeResult> {
   const timeoutMs = options.timeoutMs ?? 4_000
   const { signal, cancel } = combinedSignal(options.signal, timeoutMs)
+  // dns.resolve* accepts no signal; a dedicated Resolver can be cancelled so
+  // the timeout actually stops c-ares instead of waiting for its own retries.
+  const resolver = new dns.Resolver()
+  const stop = (): void => { resolver.cancel() }
+  if (signal.aborted) stop()
+  else signal.addEventListener('abort', stop, { once: true })
   const started = performance.now()
   try {
     const [v4, v6] = await Promise.allSettled([
-      dns.resolve4(host),
-      dns.resolve6(host),
+      resolver.resolve4(host),
+      resolver.resolve6(host),
     ])
     const addresses: string[] = []
     let family: 4 | 6 = 4
@@ -60,11 +66,12 @@ export async function probeDns(host: string, options: ProbeTimerOptions = {}): P
       return {
         ...check('dns', `无法解析 ${host}`, 'node:dns', { host }),
         status: 'error',
-        errorCode: 'DNS_FAILED',
-        humanMessage: `无法解析 ${host}`,
+        errorCode: aborted(signal) ? 'DNS_CANCELLED' : 'DNS_FAILED',
+        humanMessage: aborted(signal) ? `解析 ${host} 超时（${String(timeoutMs)}ms）` : `无法解析 ${host}`,
         technicalMessage: errorMessage(firstError),
         addresses: [],
         family: 4,
+        details: { host, timeoutMs },
       }
     }
     return {
@@ -189,11 +196,15 @@ export interface HttpProbeResult {
 export async function probeHttp(url: string, options: ProbeTimerOptions & { method?: string } = {}): Promise<ProbeCheck & HttpProbeResult> {
   const timeoutMs = options.timeoutMs ?? 8_000
   const started = performance.now()
+  // The timeout must cover both the response headers and the body read: a
+  // server (or middlebox) that accepts the connection and then stalls would
+  // otherwise hang the probe until the caller aborts.
+  const { signal, cancel } = combinedSignal(options.signal, timeoutMs)
   try {
     const response = await fetch(url, {
       method: options.method ?? 'HEAD',
       redirect: 'follow',
-      signal: options.signal,
+      signal,
       headers: { 'user-agent': 'dsh-network-settings/0.1' },
     })
     const latencyMs = Math.round(performance.now() - started)
@@ -208,14 +219,17 @@ export async function probeHttp(url: string, options: ProbeTimerOptions & { meth
   } catch (error) {
     return {
       status: 'error',
-      errorCode: aborted(options.signal) ? 'HTTP_CANCELLED' : 'HTTP_FAILED',
-      humanMessage: `无法访问 ${url}`,
+      errorCode: aborted(signal) ? 'HTTP_CANCELLED' : 'HTTP_FAILED',
+      humanMessage: aborted(signal) ? `访问 ${url} 超时（${String(timeoutMs)}ms）` : `无法访问 ${url}`,
       technicalMessage: errorMessage(error),
       source: 'node:fetch',
       timestamp: new Date().toISOString(),
       viaProxy: false,
       url,
+      details: { url, timeoutMs },
     }
+  } finally {
+    cancel()
   }
 }
 

@@ -29,14 +29,41 @@ export const DEFAULT_TARGETS: readonly ProbeTarget[] = [
 
 /** Read-only full inspection: static facts plus on-demand layered probes. */
 export async function inspectNetwork(options: InspectNetworkOptions = {}): Promise<NetworkInspection> {
+  // One deadline for the whole inspection. Individual probes carry layer
+  // timeouts, but network breakage multiplies them (DNS retries, dropped SYNs,
+  // stalled bodies); without a hard cap a single 'run' could hang for minutes.
+  const deadlineMs = options.timeoutMs ?? 45_000
+  const deadline = new AbortController()
+  const forwardAbort = (): void => { deadline.abort() }
+  if (options.signal?.aborted === true) deadline.abort()
+  else options.signal?.addEventListener('abort', forwardAbort, { once: true })
+  const deadlineTimer = setTimeout(forwardAbort, deadlineMs)
+  deadlineTimer.unref?.()
+  try {
+    return await inspectNetworkWithDeadline(options, deadline.signal, deadlineMs)
+  } finally {
+    clearTimeout(deadlineTimer)
+    options.signal?.removeEventListener('abort', forwardAbort)
+  }
+}
+
+async function inspectNetworkWithDeadline(
+  options: InspectNetworkOptions,
+  signal: AbortSignal,
+  deadlineMs: number,
+): Promise<NetworkInspection> {
   const timestamp = new Date().toISOString()
   const runtime = { platform: process.platform, version: process.version, ...process.env['DSH_HOME'] === undefined ? {} : { dshHome: process.env['DSH_HOME'] } }
+  // Static phases keep their own tight caps: a hung PowerShell or wsl.exe must
+  // not consume the whole budget. The previous behavior passed the full
+  // timeoutMs (60s from the RPC entry) into every subcommand.
+  const staticTimeoutMs = Math.min(deadlineMs, 20_000)
 
-  const windows = options.reuse?.windows ?? await inspectWindowsFacts({ signal: options.signal, timeoutMs: options.timeoutMs ?? 20_000 })
+  const windows = options.reuse?.windows ?? await inspectWindowsFacts({ signal, timeoutMs: staticTimeoutMs })
   windows.modelServices = options.modelServices ?? windows.modelServices
   const wsl = options.reuse !== undefined
     ? options.reuse.wsl
-    : options.includeWsl === false ? undefined : await inspectWsl({ signal: options.signal, timeoutMs: options.timeoutMs ?? 20_000 })
+    : options.includeWsl === false ? undefined : await inspectWsl({ signal, timeoutMs: Math.min(deadlineMs, 15_000) })
 
   const endpoints = endpointsFromInspection(
     windows.proxy,
@@ -49,7 +76,8 @@ export async function inspectNetwork(options: InspectNetworkOptions = {}): Promi
   const probes: LayeredProbe[] = []
   if (options.includeProbes !== false) {
     const targets = [...(options.targets ?? DEFAULT_TARGETS), ...(options.modelServices ?? windows.modelServices).flatMap(modelTargets)]
-    const directResults = await Promise.all(targets.map(async target => probeTarget(target, 'direct', { signal: options.signal, plan: options.probePlan ?? 'single' })))
+    const plan = options.probePlan ?? 'single'
+    const directResults = await Promise.all(targets.map(async target => probeTarget(target, 'direct', { signal, plan })))
     probes.push(...directResults)
 
     // Probe the proxy the DSH process is actually configured to use, then the
@@ -58,50 +86,52 @@ export async function inspectNetwork(options: InspectNetworkOptions = {}): Promi
     const dshProxy = proxyFromEnvironmentSnapshot(windows.dshProcessEnvironment)
     const primary = primaryProxy(endpoints)
     for (const proxy of distinctProxies([dshProxy, primary])) {
-      probes.push(...await Promise.all(targets.map(async target => probeTarget(target, 'proxy', { proxy, signal: options.signal, plan: options.probePlan ?? 'single' }))))
+      if (signal.aborted) break
+      probes.push(...await Promise.all(targets.map(async target => probeTarget(target, 'proxy', { proxy, signal, plan }))))
     }
 
     if (wsl?.available === true) {
       for (const distribution of wsl.distributions) {
         if (distribution.state !== 'running') continue
+        if (signal.aborted) break
         const distroEnv = distribution.network?.environment
-        for (const target of targets.slice(0, 2)) {
-          const dns = await probeWslDns(distribution.name, target.host, { signal: options.signal })
-          probes.push({
+        // Each wsl.exe launch costs ~0.5-2s, so batch the distro probes in
+        // parallel instead of one sequential chain; a broken network would
+        // otherwise serialize every 6s script timeout.
+        const targetPairs = await Promise.all(targets.slice(0, 2).map(async target => [
+          {
             target: { ...target, id: `wsl:${distribution.name}:dns:${target.id}`, label: `${distribution.name} → DNS ${target.label}`, kind: target.kind },
-            path: 'direct',
-            layers: { dns },
-          })
-          const direct = await probeWslDirectInternet(distribution.name, target.url ?? `https://${target.host}`, { signal: options.signal })
-          probes.push({
+            path: 'direct' as const,
+            layers: { dns: await probeWslDns(distribution.name, target.host, { signal }) },
+          },
+          {
             target: { ...target, id: `wsl:${distribution.name}:direct:${target.id}`, label: `${distribution.name} → ${target.label}`, kind: target.kind },
-            path: 'direct',
-            layers: { http: direct },
-          })
-        }
-        for (const host of windowsHostsFor(distribution)) {
-          const tcp = await probeWslTcp(distribution.name, host.address, 443, { signal: options.signal })
-          probes.push({
-            target: { id: `wsl:${distribution.name}:host:${host.source}`, label: `${distribution.name} → Windows Host (${host.source})`, host: host.address, port: 443, kind: 'windows-host' },
-            path: 'direct',
-            layers: { tcp },
-          })
-        }
+            path: 'direct' as const,
+            layers: { http: await probeWslDirectInternet(distribution.name, target.url ?? `https://${target.host}`, { signal }) },
+          },
+        ]))
+        probes.push(...targetPairs.flat())
+        const hostProbes = await Promise.all(windowsHostsFor(distribution).slice(0, 3).map(async host => ({
+          target: { id: `wsl:${distribution.name}:host:${host.source}`, label: `${distribution.name} → Windows Host (${host.source})`, host: host.address, port: 443, kind: 'windows-host' as const },
+          path: 'direct' as const,
+          layers: { tcp: await probeWslTcp(distribution.name, host.address, 443, { signal }) },
+        })))
+        probes.push(...hostProbes)
         // In WSL the DSH process env is the authoritative current-DSH config;
         // the distro-wide env is only a fallback for comparison.
-        const dshProxy = proxyFromEnvironmentSnapshot(windows.dshProcessEnvironment)
         const distroProxy = distroEnv === undefined ? undefined : firstWslProxy(distroEnv)
         const effectiveProxy = dshProxy ?? distroProxy
         if (effectiveProxy !== undefined) {
-          for (const target of targets.slice(0, 2)) {
-            const proxyTcp = await probeWslTcp(distribution.name, effectiveProxy.host, effectiveProxy.port, { signal: options.signal })
-            const proxyInternet = await probeWslProxyInternet(distribution.name, effectiveProxy.url, target.url ?? `https://${target.host}`, { signal: options.signal })
-            probes.push({
-              target: { id: `wsl:${distribution.name}:proxy-endpoint`, label: `${distribution.name} → Windows Proxy`, host: effectiveProxy.host, port: effectiveProxy.port, kind: 'wsl-proxy' },
-              path: 'proxy',
-              layers: { tcp: proxyTcp, http: proxyInternet },
-            })
-          }
+          // The proxy endpoint TCP state is a property of the endpoint, not of
+          // the target; probe it once and share the check across targets.
+          const proxyTcp = await probeWslTcp(distribution.name, effectiveProxy.host, effectiveProxy.port, { signal })
+          const proxyInternets = await Promise.all(targets.slice(0, 2).map(target =>
+            probeWslProxyInternet(distribution.name, effectiveProxy.url, target.url ?? `https://${target.host}`, { signal })))
+          probes.push(...proxyInternets.map(http => ({
+            target: { id: `wsl:${distribution.name}:proxy-endpoint`, label: `${distribution.name} → Windows Proxy`, host: effectiveProxy.host, port: effectiveProxy.port, kind: 'wsl-proxy' as const },
+            path: 'proxy' as const,
+            layers: { tcp: proxyTcp, http },
+          })))
         }
       }
     }
@@ -111,10 +141,11 @@ export async function inspectNetwork(options: InspectNetworkOptions = {}): Promi
 }
 
 function annotateListeners(endpoints: ProxyEndpoint[], listeners: ListenerInspection[]): ProxyEndpoint[] {
+  const normalize = (host: string): string => host.toLowerCase() === 'localhost' ? '127.0.0.1' : host
   return endpoints.map(endpoint => {
     const listener = listeners.find(entry =>
       entry.port === endpoint.port
-      && (entry.address === endpoint.host || entry.address === '0.0.0.0' || entry.address === '::'))
+      && (entry.address === normalize(endpoint.host) || entry.address === '0.0.0.0' || entry.address === '::'))
     return listener === undefined ? endpoint : { ...endpoint, listener: { pid: listener.pid, processName: listener.processName ?? '' } }
   })
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { deleteHostsEntry, parseHostsEntries, previewHostsDelete, rollbackHostsSnapshot } from '../../src/host/repair/hosts.ts'
+import { deleteHostsEntry, parseHostsEntries, previewHostsDelete, rollbackHostsSnapshot, windowsHostsPath } from '../../src/host/repair/hosts.ts'
 
 describe('Hosts entry parser and single-entry repair', () => {
   it('parses non-comment entries with line numbers and ignores comments', () => {
@@ -19,6 +19,11 @@ describe('Hosts entry parser and single-entry repair', () => {
     const preview = previewHostsDelete(entry)
     assert.match(preview.scopeDescription, /只会删除 Hosts 文件第 1 行/)
     assert.equal(preview.diffText[0], 'hosts:1: 127.0.0.1 github.com → (删除)')
+  })
+
+  it('converts /mnt/c paths to Windows drive-letter form for elevated scripts', () => {
+    assert.equal(windowsHostsPath('/mnt/c/Windows/System32/drivers/etc/hosts'), 'C:\\Windows\\System32\\drivers\\etc\\hosts')
+    assert.equal(windowsHostsPath('C:\\Windows\\System32\\drivers\\etc\\hosts'), 'C:\\Windows\\System32\\drivers\\etc\\hosts')
   })
 
   it('deletes exactly one line with a backup and can roll back', async () => {

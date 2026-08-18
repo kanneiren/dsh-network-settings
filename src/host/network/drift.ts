@@ -9,6 +9,7 @@
  *   Windows User → WinHTTP → Machine/System.
  */
 import type { EnvironmentScopeSnapshot, NetworkInspection } from '../model.ts'
+import { RECOMMEND_CONFIDENCE_THRESHOLD, diagnosisActionOperations, isRecommendableOperation } from '../repair/catalog.ts'
 import type { GraphSurvey } from './survey.ts'
 import type { Evidence, NetworkDiagnostic, NetworkPathGraph, ProxyEndpoint } from './types.ts'
 
@@ -186,12 +187,20 @@ function endpointEvidence(endpoint: ProxyEndpoint): Evidence[] {
 
 function sortDiagnostics(diagnostics: NetworkDiagnostic[]): NetworkDiagnostic[] {
   const rank = (severity: NetworkDiagnostic['severity']): number => severity === 'error' ? 0 : severity === 'warning' ? 1 : 2
-  return diagnostics.sort((left, right) => rank(left.severity) - rank(right.severity) || left.confidence - right.confidence)
+  return diagnostics.sort((left, right) => rank(left.severity) - rank(right.severity) || right.confidence - left.confidence)
 }
 
-/** Attach the first actionable drift diagnostic as the graph's repair hint. */
+/** Attach the best recommendable drift diagnostic as the graph's repair hint.
+ *  Only diagnostics that clear the shared confidence threshold and map to a
+ *  whitelisted common operation become the highlighted recommendation. */
 export function withDriftRecommendation(graph: NetworkPathGraph, diagnostics: NetworkDiagnostic[]): NetworkPathGraph {
-  const recommended = diagnostics.find(item => item.actions.length > 0)
+  const eligible = diagnostics
+    .filter(item => item.confidence >= RECOMMEND_CONFIDENCE_THRESHOLD)
+    .filter(item => item.actions.some(action => diagnosisActionOperations(action).some(operation => isRecommendableOperation(operation.id))))
+  const recommended = eligible.reduce<NetworkDiagnostic | undefined>(
+    (best, item) => best === undefined || item.confidence > best.confidence ? item : best,
+    undefined,
+  )
   if (recommended === undefined) return graph
   return {
     ...graph,

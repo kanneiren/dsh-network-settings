@@ -35,9 +35,8 @@ export function RepairSection({ service, diagnoses, inspection, t }: RepairSecti
   const [failure, setFailure] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    const actions = diagnoses.flatMap(diagnosis => diagnosis.actions)
     void service.repairCatalog().then(setCatalog)
-    void service.recommendedRepairs(actions).then(result => {
+    void service.recommendedRepairs(diagnoses).then(result => {
       setRecommendations(result.recommendations)
       setRecentlyAppliedIds(result.recentlyAppliedIds)
     })

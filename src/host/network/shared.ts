@@ -205,6 +205,34 @@ export function selectActiveAdapter(network: WindowsNetworkInspection): WindowsI
     ?? network.interfaces.find(item => item.status === 'up' && item.ipv4.length > 0)
 }
 
+const NON_PHYSICAL_KINDS: ReadonlySet<string> = new Set([
+  'vpn', 'tailscale', 'vmware', 'virtualbox', 'hyper-v', 'docker', 'wsl', 'bluetooth',
+])
+
+/**
+ * Physical uplink NIC behind the egress adapter. A TUN/VPN adapter owning the
+ * default route (e.g. BoostNet TUN 198.18.0.1) shadows the machine's real NIC
+ * (Wi-Fi/Ethernet); the graph shows both hops instead of presenting the TUN's
+ * virtual addresses as the whole story.
+ */
+export function selectUplinkAdapter(network: WindowsNetworkInspection): WindowsInterface | undefined {
+  const physical = network.interfaces.filter(item =>
+    item.status === 'up' && !item.virtual && !NON_PHYSICAL_KINDS.has(item.kind) && item.ipv4.length > 0)
+  const routes = [...network.defaultRoutes].sort((left, right) => (left.metric ?? 9999) - (right.metric ?? 9999))
+  for (const route of routes) {
+    const adapter = physical.find(item => matchesInterfaceIndex(item, route.interfaceIndex))
+    if (adapter !== undefined) return adapter
+  }
+  return physical.find(item => item.gateways.length > 0) ?? physical[0]
+}
+
+/** True when both entries describe the same adapter (index preferred). */
+export function sameAdapter(left: WindowsInterface | undefined, right: WindowsInterface | undefined): boolean {
+  if (left === undefined || right === undefined) return false
+  if (left.interfaceIndex !== undefined && right.interfaceIndex !== undefined) return left.interfaceIndex === right.interfaceIndex
+  return left.name === right.name
+}
+
 function matchesInterfaceIndex(adapter: WindowsInterface, interfaceIndex: number): boolean {
   if (adapter.interfaceIndex !== undefined) return adapter.interfaceIndex === interfaceIndex
   return interfaceIndex === 0 || adapter.ipv4.length > 0

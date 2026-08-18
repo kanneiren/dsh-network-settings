@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkTab } from '../../src/client/NetworkTab.tsx'
 import type { NetworkService, NetworkServiceSnapshot } from '../../src/client/service.ts'
 import type { NetworkLocaleKey } from '../../src/client/locales.ts'
@@ -113,6 +113,9 @@ function baseInspection(): any {
 }
 
 describe('NetworkTab', () => {
+  // No vitest globals: without this, renders leak across tests in this file.
+  afterEach(cleanup)
+
   it('renders the not-tested state and the primary action', () => {
     const service = new MockService({ phase: 'idle' })
     render(<NetworkTab service={service} t={t} />)
@@ -161,5 +164,24 @@ describe('NetworkTab', () => {
     const service = new MockService({ phase: 'error', error: 'RPC failed' })
     render(<NetworkTab service={service} t={t} />)
     expect(screen.getByText('RPC failed')).toBeTruthy()
+  })
+
+  it('shows the target switcher in the cached state and defaults to DeepSeek', () => {
+    const npmTarget = { id: 'npm-registry', label: 'npm Registry', host: 'registry.npmjs.org', port: 443, url: 'https://registry.npmjs.org', kind: 'npm-registry' as const, display: 'registry.npmjs.org:443' }
+    const deepseekTarget = { id: 'deepseek', label: 'DeepSeek', host: 'api.deepseek.com', port: 443, url: 'https://api.deepseek.com', kind: 'deepseek' as const, display: 'api.deepseek.com:443' }
+    const service = new MockService({
+      phase: 'idle',
+      cached: {
+        timestamp: '2026-08-18T20:43:40.000Z',
+        diagnosis: { worst: 'healthy', problemCount: 0, diagnoses: [] },
+        summary: { model: 'WINDOWS_NATIVE', target: npmTarget, dsh: { status: 'healthy', label: 'DSH' }, problemCount: 0 },
+      },
+      targets: [deepseekTarget, npmTarget],
+    })
+    render(<NetworkTab service={service} t={t} />)
+    // The switcher is visible and defaults to DeepSeek, not the stale cached npm target.
+    expect(screen.getByText('DeepSeek · api.deepseek.com:443')).toBeTruthy()
+    fireEvent.click(screen.getByText('单次检测'))
+    expect(service.runTargetMock).toHaveBeenCalledWith('deepseek')
   })
 })

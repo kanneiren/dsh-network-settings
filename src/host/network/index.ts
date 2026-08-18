@@ -47,7 +47,11 @@ export function buildTargets(modelServices: ModelServiceTarget[] | undefined, re
 }
 
 export function defaultTarget(targets: readonly NetworkTarget[]): NetworkTarget {
-  return targets.find(target => target.kind === 'model-service') ?? targets[0]!
+  // DeepSeek is the primary service for DSH users, so it is the default check
+  // target; the active model service is a close second when present.
+  return targets.find(target => target.kind === 'deepseek')
+    ?? targets.find(target => target.kind === 'model-service')
+    ?? targets[0]!
 }
 
 function modelTargets(models: ModelServiceTarget[]): NetworkTarget[] {

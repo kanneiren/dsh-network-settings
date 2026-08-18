@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseWslList, parseVerboseRow, distributionsFromRegistry, parseQuietList } from '../../src/host/wsl/list.ts'
+import { inspectWsl } from '../../src/host/wsl/inspect.ts'
 
 describe('WSL list parser', () => {
   it('combines quiet + running + verbose with UTF-16/CRLF text', () => {
@@ -68,5 +69,23 @@ describe('WSL list parser', () => {
     assert.equal(result.length, 1)
     assert.equal(result[0]?.state, 'unknown')
     assert.equal(result[0]?.wslVersion, 2)
+  })
+
+  it('inspectWsl still lists stopped distros when --list --running exits non-zero', async () => {
+    const result = await inspectWsl({
+      fixtures: {
+        version: 'WSL 版本： 2.0.0\n内核版本： 5.15.0\nWindows 版本： 10.0.26100.0',
+        status: '默认版本： 2',
+        quiet: 'docker-desktop\r\nUbuntu-24.04\r\n',
+        runningFailed: true,
+        verbose: '  名称             状态           版本\r\n  docker-desktop   已停止         2\r\n  Ubuntu-24.04     已停止         2\r\n',
+        wslconfig: '',
+      },
+    })
+    assert.equal(result.available, true)
+    assert.equal(result.distributions.length, 2)
+    assert.deepEqual(result.distributions.map(d => d.name), ['docker-desktop', 'Ubuntu-24.04'])
+    assert.equal(result.distributions.every(d => d.state === 'stopped'), true)
+    assert.deepEqual(result.rawErrors, [])
   })
 })

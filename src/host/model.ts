@@ -153,7 +153,7 @@ export interface WslNetworkInspection {
     boot?: { systemd?: boolean }
     interop?: { enabled?: boolean; appendWindowsPath?: boolean }
   }
-  generatedBy?: 'quiet-running' | 'verbose' | 'registry' | 'unknown'
+  generatedBy?: 'quiet-running' | 'verbose' | 'registry' | 'local-facts' | 'unknown'
 }
 
 export interface HostCandidate {

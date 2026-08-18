@@ -1,5 +1,5 @@
 /** Typed API service over DSH Connection's generic RPC channel. */
-import type { AdvancedAction, AdvancedRunResult, ConfigurePreview, ConfigureRequest, ConfigureResult, DiagnosisAction, DiagnosisReport, HostsDeletePreview, HostsDeleteResult, HostsEntry, NetworkInspection, NetworkPathGraph, NetworkPathSummary, NetworkTarget, RepairOperation, RepairOperationApply, RepairOperationPreview, RepairRecommendationsResult, RpcResult, RunResult, SnapshotRecord, StatusResult, WslProxyApplyResult, WslProxyPreview, WslProxySource } from './contract.ts'
+import type { AdvancedAction, AdvancedRunResult, ConfigurePreview, ConfigureRequest, ConfigureResult, Diagnosis, DiagnosisAction, DiagnosisReport, HostsDeletePreview, HostsDeleteResult, HostsEntry, NetworkInspection, NetworkPathGraph, NetworkPathSummary, NetworkTarget, RepairOperation, RepairOperationApply, RepairOperationPreview, RepairRecommendationsResult, RpcResult, RunResult, SnapshotRecord, StatusResult, WslProxyApplyResult, WslProxyPreview, WslProxySource } from './contract.ts'
 
 const CHANNEL = '/dsh-network-settings'
 
@@ -33,8 +33,8 @@ export interface NetworkService {
   rollbackLatest(): Promise<RollbackResult | undefined>
   advancedList(): Promise<AdvancedAction[]>
   advancedRun(id: string): Promise<AdvancedRunResult | undefined>
-  repairCatalog(): Promise<RepairOperation[]>
-  recommendedRepairs(actions: DiagnosisAction[]): Promise<RepairRecommendationsResult>
+    repairCatalog(): Promise<RepairOperation[]>
+    recommendedRepairs(diagnoses: Diagnosis[]): Promise<RepairRecommendationsResult>
   previewRepairOperation(operationId: string): Promise<RepairOperationPreview | undefined>
   applyRepairOperation(operationId: string): Promise<RepairOperationApply | undefined>
   wslProxySources(distribution: string): Promise<WslProxySource[]>
@@ -101,6 +101,11 @@ export function createNetworkService(connection: ConnectionFace): NetworkService
           cached: { timestamp: result.value.timestamp, diagnosis: result.value.diagnosis, summary: result.value.summary },
           targets: result.value.targets,
         })
+        return
+      }
+      // Standby: still publish targets so the switcher works before a run.
+      if (result.value.targets !== undefined && snapshot.targets === undefined) {
+        publish({ targets: result.value.targets })
       }
     },
     async run(targetId?: string) {
@@ -175,8 +180,8 @@ export function createNetworkService(connection: ConnectionFace): NetworkService
       const result = await connection.rpc.call<{ operations: RepairOperation[] }>(CHANNEL, 'repair/catalog', {})
       return result.ok ? result.value.operations : []
     },
-    async recommendedRepairs(actions) {
-      const result = await connection.rpc.call<RepairRecommendationsResult>(CHANNEL, 'repair/recommended', { actions })
+    async recommendedRepairs(diagnoses) {
+      const result = await connection.rpc.call<RepairRecommendationsResult>(CHANNEL, 'repair/recommended', { diagnoses })
       return result.ok ? result.value : { recentlyAppliedIds: [], recommendations: [] }
     },
     async previewRepairOperation(operationId) {

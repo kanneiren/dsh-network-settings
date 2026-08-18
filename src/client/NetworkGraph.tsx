@@ -39,6 +39,15 @@ function statusLabel(status: PathStatus, t: T): string {
   return t('unknownLabel')
 }
 
+/**
+ * 198.18.0.0/15 is the RFC 2544 benchmark range, repurposed by TUN/Fake-IP
+ * proxy software (Clash TUN, BoostNet, …) as its virtual adapter network.
+ * Showing such an address bare invites "is this wrong?" — annotate it.
+ */
+function isFakeIp(address: string | undefined): boolean {
+  return address !== undefined && /^198\.(18|19)\.\d{1,3}\.\d{1,3}$/.test(address)
+}
+
 function NodeChip({ node, t }: { node: PathNode; t: T }): ReactNode {
   const chip = (
     <span className={css.node} data-status={node.status} data-type={node.type} data-role={node.role}>
@@ -51,7 +60,7 @@ function NodeChip({ node, t }: { node: PathNode; t: T }): ReactNode {
   )
   const tip = node.address === undefined && node.port === undefined
     ? `${node.label} · ${statusLabel(node.status, t)}`
-    : `${node.label} · ${node.address ?? ''}${node.port === undefined ? '' : `:${node.port}`}`
+    : `${node.label} · ${node.address ?? ''}${node.port === undefined ? '' : `:${node.port}`}${isFakeIp(node.address) ? ` · ${t('fakeIpHint')}` : ''}`
   return <Tooltip label={tip}>{chip}</Tooltip>
 }
 
