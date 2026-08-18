@@ -36,6 +36,21 @@ pwsh scripts/dev-wsl-reload.ps1       # build + restart the WSL instance (port 3
 - Every persistent change uses snapshot → preview → confirm → apply.
 - Secrets are redacted before persistence or RPC responses.
 
+## Diagnostic report contract
+
+`src/client/report.ts` produces the clipboard report pasted to agents. It is
+a parseable contract, keep it stable:
+
+- Fixed English section headers regardless of UI locale, plus a
+  `report-version` line — bump it whenever the layout changes in a way
+  scripts/agents could misread.
+- `## TL;DR` first: runtime model, path status and target, readable first
+  failure, recommended repair, top diagnoses.
+- Machine-stable identifiers everywhere: diagnosis/evidence/action codes,
+  probe target ids (evidence refs are `probe:<target.id>:<layer>`), status
+  enums; long technical lines are truncated.
+- Works without an inspection (diagnosis-only briefing in the cached state).
+
 ## Data model
 
 Core types live in `src/host/network/types.ts`. The client mirror lives in

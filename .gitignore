@@ -19,3 +19,8 @@ test-results/
 .env
 .env.*
 !.env.example
+
+# Local development scratch files (probe/diagnose output, quick checks)
+.*.tmp.*
+*.tmp.json
+*.tmp.ts

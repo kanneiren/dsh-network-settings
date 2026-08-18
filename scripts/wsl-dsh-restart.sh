@@ -25,7 +25,9 @@ set -u
 PORT="${PORT:-3092}"
 BRIDGE_PORT="${BRIDGE_PORT:-6290}"
 DSH_LOG="${DSH_LOG:-$HOME/.dsh/dsh-web.log}"
-PATCH_GLOB="${PATCH_GLOB:-/mnt/c/Users/kanneiren/AppData/Local/DeepSeekHarnessManager/runtime/wsl-detected-Ubuntu-24.04-*/windows-lifecycle.patch.yml}"
+# Windows user profile is derived dynamically so the script stays portable.
+WIN_USER="$(cmd.exe /d /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r' || true)"
+PATCH_GLOB="${PATCH_GLOB:-/mnt/c/Users/${WIN_USER:-$USER}/AppData/Local/DeepSeekHarnessManager/runtime/wsl-detected-Ubuntu-24.04-*/windows-lifecycle.patch.yml}"
 
 # --- 1. locate the current instance -----------------------------------------
 PID=$(ss -ltnp 2>/dev/null | grep ":$PORT " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -n1)

@@ -29,7 +29,9 @@
   sampling; DeepSeek is the default target and switching is always available.
   Every probe layer and the whole check carry hard timeouts, so a broken
   network never stalls the page.
-- **Agent-ready report** — one click copies a Markdown report.
+- **Agent-ready report** — one click copies a stable-format Markdown report
+  (fixed English headers, `report-version`, TL;DR first, machine-readable
+  codes and per-layer probe latency).
 - **Recommended repairs** — only high-confidence diagnoses mapped to common
   low-risk operations (clear proxy-residue env vars, disable system proxy,
   flush DNS cache); admin and high-risk operations stay in the manual catalog.
