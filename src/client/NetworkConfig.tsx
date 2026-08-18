@@ -120,6 +120,20 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
                 </div>
               )
             })()}
+            {(() => {
+              // Machine scope only appears when set: an empty row would be
+              // noise on the vast majority of machines.
+              const entries = hasInspection ? envEntries(env['machine']) : []
+              if (entries.length === 0) return null
+              return (
+                <div className={css.detailRow}>
+                  <span className={css.detailName}>{t('envScopeMachine')}</span>
+                  {entries.map(([name, value]) => (
+                    <span key={name} className={css.detailMeta}>{name}={value}</span>
+                  ))}
+                </div>
+              )
+            })()}
             {staleDshProxy ? (
               <>
                 <div className={css.detailMeta}>{t('staleProxyHint')}</div>
