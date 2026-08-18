@@ -178,13 +178,7 @@ export async function inspectWindowsFacts(options: InspectWindowsOptions = {}): 
     ...facts.gatewayNeighborState === undefined || facts.gatewayNeighborState === '' ? {} : { gatewayNeighborState: facts.gatewayNeighborState },
   }
 
-  const wininet: WinInetProxyInspection = {
-    enabled: facts.wininet?.['ProxyEnable'] === 1,
-    ...typeof facts.wininet?.['ProxyServer'] === 'string' ? { proxyServer: facts.wininet['ProxyServer'] } : {},
-    ...typeof facts.wininet?.['ProxyOverride'] === 'string' ? { proxyOverride: facts.wininet['ProxyOverride'] } : {},
-    ...typeof facts.wininet?.['AutoConfigURL'] === 'string' && facts.wininet['AutoConfigURL'] !== '' ? { autoConfigUrl: facts.wininet['AutoConfigURL'] } : {},
-    autoDetect: facts.wininet?.['AutoDetect'] === true,
-  }
+  const wininet = parseWinInet(facts.wininet)
 
   const winhttp: WinHttpProxyInspection[] = []
   if (facts.winhttpAdvProxyMachine !== undefined) {
@@ -270,7 +264,17 @@ export function classifyInterface(description: string): WindowsInterface['kind']
   return 'other'
 }
 
-function parseWinHttpAdvProxy(raw: string, scope: 'machine' | 'user'): WinHttpProxyInspection | undefined {
+export function parseWinInet(raw: Record<string, unknown> | undefined): WinInetProxyInspection {
+  return {
+    enabled: raw?.['ProxyEnable'] === 1,
+    ...typeof raw?.['ProxyServer'] === 'string' ? { proxyServer: raw['ProxyServer'] } : {},
+    ...typeof raw?.['ProxyOverride'] === 'string' ? { proxyOverride: raw['ProxyOverride'] } : {},
+    ...typeof raw?.['AutoConfigURL'] === 'string' && raw['AutoConfigURL'] !== '' ? { autoConfigUrl: raw['AutoConfigURL'] } : {},
+    autoDetect: raw?.['AutoDetect'] === true,
+  }
+}
+
+export function parseWinHttpAdvProxy(raw: string, scope: 'machine' | 'user'): WinHttpProxyInspection | undefined {
   try {
     const json = extractJson<Record<string, unknown>>(raw)
     const boolean = (value: unknown): boolean => value === true || value === 'true'

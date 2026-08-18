@@ -7,7 +7,7 @@ import { parseNoProxy, matchesNoProxy } from '../proxy/no-proxy.ts'
 import { parseProxyUrl } from '../proxy/proxy-url.ts'
 import { redactProxyUrl } from '../redact.ts'
 import type {
-  DnsBranch, Evidence, NetworkTarget, PathNode, PathStatus, ProxyConfiguration,
+  DnsBranch, Evidence, NetworkTarget, PathEdge, PathNode, PathStatus, ProxyConfiguration,
   ProxyEndpoint, ProxyListener, ProxyScheme,
 } from './types.ts'
 
@@ -251,4 +251,120 @@ export function interfaceLabel(adapter: WindowsInterface | undefined): string {
 
 export function interfaceIpv4(adapter: WindowsInterface | undefined): string | undefined {
   return adapter?.ipv4[0]
+}
+
+/** Windows-side egress chain shared by both graph builders. */
+export interface EgressFacts {
+  adapter: WindowsInterface | undefined
+  adapterIp: string | undefined
+  /** Physical NIC behind a TUN/VPN egress adapter; undefined when egress is physical already. */
+  uplink: WindowsInterface | undefined
+  uplinkIp: string | undefined
+  gateway: string | undefined
+  /** Whether the ICMP/neighbor gateway evidence was measured against this gateway. */
+  gatewayMeasured: boolean
+}
+
+export function egressFactsOf(network: WindowsNetworkInspection): EgressFacts {
+  const adapter = selectActiveAdapter(network)
+  const physical = selectUplinkAdapter(network)
+  const uplink = sameAdapter(physical, adapter) ? undefined : physical
+  const gateway = (uplink === undefined ? undefined : gatewayOf(uplink)) ?? gatewayOf(adapter)
+  return {
+    adapter,
+    adapterIp: interfaceIpv4(adapter),
+    uplink,
+    uplinkIp: interfaceIpv4(uplink),
+    gateway,
+    gatewayMeasured: gateway !== undefined && gateway === network.defaultRoutes[0]?.nextHop,
+  }
+}
+
+/** Physical-uplink node between the egress adapter and the gateway (may be empty). */
+export function uplinkNodes(egress: EgressFacts, status: PathStatus): PathNode[] {
+  if (egress.uplink === undefined) return []
+  return [{
+    id: 'dsh:uplink', type: 'INTERFACE', role: 'main', label: interfaceLabel(egress.uplink),
+    subtitle: `${egress.uplink.name} · 物理出口`,
+    ...egress.uplinkIp === undefined ? {} : { address: egress.uplinkIp },
+    status,
+    details: [
+      { label: '接口名称', value: egress.uplink.name },
+      { label: '接口描述', value: egress.uplink.description },
+      { label: 'IPv4', value: egress.uplink.ipv4.join(', ') || '-' },
+      { label: '网关', value: egress.uplink.gateways.join(', ') || '-' },
+      { label: 'DNS', value: egress.uplink.dns.join(', ') || '-' },
+    ],
+  }]
+}
+
+/** adapter → uplink edge; empty when the egress adapter is physical. */
+export function uplinkEdges(egress: EgressFacts, status: PathStatus): PathEdge[] {
+  if (egress.uplink === undefined) return []
+  return [{
+    from: 'dsh:adapter', to: 'dsh:uplink', relation: 'ROUTE', status,
+    label: egress.adapter?.kind === 'vpn' ? 'TUN/VPN 出站' : 'Windows 路由',
+  }]
+}
+
+// ── Gateway evidence (shared by both builders) ──────────────────────────────
+
+export function positiveNeighborState(state: string | undefined): boolean {
+  return state === 'Reachable' || state === 'Stale' || state === 'Permanent' || state === 'Probe' || state === 'Delay'
+}
+
+/** ICMP/neighbor evidence is only claimed for the gateway it was measured against. */
+export function gatewayEvidenceOf(network: WindowsNetworkInspection, targetReached: boolean, measured: boolean): boolean {
+  if (measured && network.gatewayPing === true) return true
+  if (measured && positiveNeighborState(network.gatewayNeighborState)) return true
+  return targetReached
+}
+
+export function gatewaySubtitle(inspection: NetworkInspection, measured: boolean): string {
+  const network = inspection.windows.network
+  if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
+  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关邻居 ${network.gatewayNeighborState} · 端到端可达`
+  return '端到端探测通过默认网关'
+}
+
+export function gatewayEdgeLabel(inspection: NetworkInspection, measured: boolean): string {
+  const network = inspection.windows.network
+  if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
+  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关 ${network.gatewayNeighborState}`
+  return '端到端可达'
+}
+
+export function gatewayEvidenceValue(inspection: NetworkInspection, measured: boolean): string {
+  const network = inspection.windows.network
+  if (measured && network.gatewayPing === true) return 'gateway ICMP probe OK'
+  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `gateway neighbor state=${network.gatewayNeighborState}`
+  return 'end-to-end probe through default route'
+}
+
+// ── Probe evidence labels (shared by both builders) ─────────────────────────
+
+export function probeEvidence(probe: LayeredProbe | undefined, layer: 'dns' | 'tcp' | 'tls' | 'http') {
+  const check = probe?.layers[layer]
+  if (check === undefined) return evidence('HTTP_PROBE', 'inferred', '未探测')
+  return {
+    source: layer === 'dns' ? 'DNS_PROBE' as const : layer === 'tcp' ? 'TCP_PROBE' as const : layer === 'tls' ? 'TLS_PROBE' as const : 'HTTP_PROBE' as const,
+    confidence: (check.status === 'healthy' ? 'verified' : 'inferred') as 'verified' | 'inferred',
+    value: check.humanMessage,
+    ref: `${probe?.target.id ?? 'probe'}:${layer}`,
+  }
+}
+
+export function probeEvidenceList(probe: LayeredProbe | undefined) {
+  return (['tcp', 'http'] as const).map(layer => probeEvidence(probe, layer))
+}
+
+export function failureLayerLabel(probe: LayeredProbe | undefined): string {
+  if (probe?.layers.http?.status === 'error') return `HTTP 失败 · ${probe.layers.http.humanMessage}`
+  if (probe?.layers.tls?.status === 'error') return `TLS 失败 · ${probe.layers.tls.humanMessage}`
+  if (probe?.layers.tcp?.status === 'error') return `TCP 失败 · ${probe.layers.tcp.humanMessage}`
+  return '连接失败'
+}
+
+export function statusText(status: PathStatus): string {
+  return status === 'healthy' ? '正常' : status === 'error' ? '失败' : status === 'warning' ? '警告' : status === 'not-applicable' ? '不适用' : '未知'
 }

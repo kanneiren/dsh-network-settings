@@ -1,9 +1,11 @@
 /** WSL_DISTRIBUTION graph builder: DSH-only path. */
-import type { LayeredProbe, WindowsInterface, WslDistribution } from '../model.ts'
+import type { LayeredProbe, WslDistribution } from '../model.ts'
 import {
-  dnsBranchFromProbe, endpointFromConfig, endpointStatusFromProbe,
-  evidence, gatewayOf, interfaceIpv4, interfaceLabel, pathStatusOfProbe,
-  resolveEnvProxy, selectActiveAdapter, selectUplinkAdapter, sameAdapter, statusOfCheck,
+  dnsBranchFromProbe, egressFactsOf, endpointFromConfig, endpointStatusFromProbe,
+  evidence, failureLayerLabel, gatewayEdgeLabel, gatewayEvidenceOf, gatewaySubtitle,
+  interfaceLabel, pathStatusOfProbe, probeEvidence, probeEvidenceList,
+  resolveEnvProxy, statusOfCheck, statusText, uplinkEdges, uplinkNodes,
+  type EgressFacts,
 } from './shared.ts'
 import type { GraphSurvey } from './survey.ts'
 import type {
@@ -30,47 +32,18 @@ export function buildWslDshPath(survey: GraphSurvey): BuiltDshPath {
   const runtime = survey.runtime as WslDistributionRuntime
   const distro = currentDistribution(runtime, survey)
   const { inspection, target } = survey
-  const adapter = selectActiveAdapter(inspection.windows.network)
-  const physical = selectUplinkAdapter(inspection.windows.network)
-  const egress = {
-    adapter,
-    adapterIp: interfaceIpv4(adapter),
-    uplink: sameAdapter(physical, adapter) ? undefined : physical,
-    uplinkIp: interfaceIpv4(physical),
-    gateway: (sameAdapter(physical, adapter) ? undefined : gatewayOf(physical)) ?? gatewayOf(adapter),
-    gatewayMeasured: false as boolean,
-  }
-  egress.gatewayMeasured = egress.gateway !== undefined && egress.gateway === inspection.windows.network.defaultRoutes[0]?.nextHop
+  const egress = egressFactsOf(inspection.windows.network)
   const config = resolveEnvProxy(inspection.windows.dshProcessEnvironment, target, 'DSH_PROCESS_ENV', 'DSH Process / 代理环境变量')
   return config === undefined
     ? buildWslDirectPath(survey, runtime, distro, egress)
     : buildWslProxyPath(survey, runtime, distro, config, egress)
 }
 
-interface WslEgress {
-  adapter: WindowsInterface | undefined
-  adapterIp: string | undefined
-  uplink: WindowsInterface | undefined
-  uplinkIp: string | undefined
-  gateway: string | undefined
-  gatewayMeasured: boolean
-}
-
-function uplinkNode(egress: WslEgress, status: PathStatus): PathNode | undefined {
-  if (egress.uplink === undefined) return undefined
-  return {
-    id: 'dsh:uplink', type: 'INTERFACE', role: 'main', label: interfaceLabel(egress.uplink),
-    subtitle: `${egress.uplink.name} · 物理出口`,
-    ...egress.uplinkIp === undefined ? {} : { address: egress.uplinkIp },
-    status,
-  }
-}
-
 function buildWslDirectPath(
   survey: GraphSurvey,
   runtime: WslDistributionRuntime,
   distro: WslDistribution | undefined,
-  egress: WslEgress,
+  egress: EgressFacts,
 ): BuiltDshPath {
   const { inspection, target } = survey
   const { adapter, adapterIp, gateway, gatewayMeasured } = egress
@@ -126,7 +99,7 @@ function buildWslDirectPath(
       ...adapterIp === undefined ? {} : { address: adapterIp },
       status: targetReached || gatewayReachable ? 'healthy' : 'unknown',
     },
-    ...uplinkNode(egress, targetReached || gatewayReachable ? 'healthy' : 'unknown') === undefined ? [] : [uplinkNode(egress, targetReached || gatewayReachable ? 'healthy' : 'unknown')!],
+    ...uplinkNodes(egress, targetReached || gatewayReachable ? 'healthy' : 'unknown'),
     { id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway', ...gateway === undefined ? {} : { address: gateway }, status: gatewayReachable ? 'healthy' : 'unknown', subtitle: gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewaySubtitle(inspection, gatewayMeasured) : '网关未响应探测 · 可能禁 ping' },
     { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: targetReached ? 'healthy' : 'unknown' },
     {
@@ -142,7 +115,7 @@ function buildWslDirectPath(
     { from: 'dsh:distro', to: 'dsh:layer', relation: relationFor(runtime), status: hostSegment, label: networkLayerLabel(runtime), evidence: [evidence('WSL_CONFIG', 'verified', `mode=${runtime.networkLayer.mode}`)] },
     { from: 'dsh:layer', to: 'dsh:host', relation: relationFor(runtime) === 'MIRRORED' ? 'MIRRORED' : 'ROUTE', status: hostSegment, label: hostEdgeLabel(runtime, distro), evidence: [evidence('WSL_ROUTE', 'verified', hostRouteEvidence(distro)), probeEvidence(hostProbe, 'tcp')] },
     { from: 'dsh:host', to: 'dsh:adapter', relation: 'ROUTE', status: targetReached || gatewayReachable ? 'healthy' : 'unknown', label: 'Windows 路由' },
-    ...(egress.uplink === undefined ? [] : [{ from: 'dsh:adapter', to: 'dsh:uplink', relation: 'ROUTE' as const, status: targetReached || gatewayReachable ? ('healthy' as const) : ('unknown' as const), label: egress.adapter?.kind === 'vpn' ? 'TUN/VPN 出站' : 'Windows 路由' }]),
+    ...uplinkEdges(egress, targetReached || gatewayReachable ? 'healthy' : 'unknown'),
     { from: egress.uplink === undefined ? 'dsh:adapter' : 'dsh:uplink', to: 'dsh:gateway', relation: 'ROUTE', status: gatewayReachable ? 'healthy' : 'unknown', label: gatewayReachable ? gatewayEdgeLabel(inspection, gatewayMeasured) : '下一跳' },
     { from: 'dsh:gateway', to: 'dsh:internet', relation: 'ROUTE', status: targetReached || gatewayReachable ? 'healthy' : 'unknown', label: '默认路由' },
     {
@@ -174,7 +147,7 @@ function buildWslProxyPath(
   runtime: WslDistributionRuntime,
   distro: WslDistribution | undefined,
   config: ProxyConfiguration,
-  egress: WslEgress,
+  egress: EgressFacts,
 ): BuiltDshPath {
   const { inspection, target } = survey
   const { adapter, adapterIp, gateway, gatewayMeasured } = egress
@@ -226,7 +199,7 @@ function buildWslProxyPath(
       ...adapterIp === undefined ? {} : { address: adapterIp },
       status: endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown',
     },
-    ...uplinkNode(egress, endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown') === undefined ? [] : [uplinkNode(egress, endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown')!],
+    ...uplinkNodes(egress, endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown'),
     { id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway', ...gateway === undefined ? {} : { address: gateway }, status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown', subtitle: gatewayReachable ? gatewaySubtitle(inspection, gatewayMeasured) : '网关未响应探测 · 可能禁 ping' },
     { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown' },
     {
@@ -247,7 +220,7 @@ function buildWslProxyPath(
     { from: 'dsh:layer', to: 'dsh:host', relation: relationFor(runtime) === 'MIRRORED' ? 'MIRRORED' : 'ROUTE', status: 'healthy', label: hostEdgeLabel(runtime, distro) },
     { from: 'dsh:host', to: 'dsh:proxy', relation: 'PROXY', status: proxyEdgeStatus, label: `${config.source} · ${config.displayValue}`, evidence: [...config.evidence, ...probeEvidenceList(probe)] },
     { from: 'dsh:proxy', to: 'dsh:adapter', relation: 'ROUTE', status: downstream, label: '代理进程出站（Windows 路由推断）' },
-    ...(egress.uplink === undefined ? [] : [{ from: 'dsh:adapter', to: 'dsh:uplink', relation: 'ROUTE' as const, status: endpointFailed ? ('not-applicable' as const) : http === 'healthy' || gatewayReachable ? ('healthy' as const) : ('unknown' as const), label: egress.adapter?.kind === 'vpn' ? 'TUN/VPN 出站' : 'Windows 路由' }]),
+    ...uplinkEdges(egress, endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown'),
     { from: egress.uplink === undefined ? 'dsh:adapter' : 'dsh:uplink', to: 'dsh:gateway', relation: 'ROUTE', status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown', label: gatewayReachable ? gatewayEdgeLabel(inspection, gatewayMeasured) : '下一跳' },
     { from: 'dsh:gateway', to: 'dsh:internet', relation: 'ROUTE', status: endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown', label: '默认路由' },
     {
@@ -288,27 +261,6 @@ export function hostSegmentStatus(hostTcp: PathStatus, targetReached: boolean): 
 
 function positiveNeighborState(state: string | undefined): boolean {
   return state === 'Reachable' || state === 'Stale' || state === 'Permanent' || state === 'Probe' || state === 'Delay'
-}
-
-/** ICMP/neighbor evidence is only claimed for the gateway it was measured against. */
-function gatewayEvidenceOf(network: GraphSurvey['inspection']['windows']['network'], targetReached: boolean, measured: boolean): boolean {
-  if (measured && network.gatewayPing === true) return true
-  if (measured && positiveNeighborState(network.gatewayNeighborState)) return true
-  return targetReached
-}
-
-function gatewaySubtitle(inspection: GraphSurvey['inspection'], measured: boolean): string {
-  const network = inspection.windows.network
-  if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
-  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关邻居 ${network.gatewayNeighborState} · 端到端可达`
-  return '端到端探测通过默认网关'
-}
-
-function gatewayEdgeLabel(inspection: GraphSurvey['inspection'], measured: boolean): string {
-  const network = inspection.windows.network
-  if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
-  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关 ${network.gatewayNeighborState}`
-  return '端到端可达'
 }
 
 function relationFor(runtime: WslDistributionRuntime): PathEdgeRelation {
@@ -404,28 +356,3 @@ function probeDetails(probe: LayeredProbe | undefined, targetDisplay: string) {
   ]
 }
 
-function probeEvidence(probe: LayeredProbe | undefined, layer: 'dns' | 'tcp' | 'tls' | 'http') {
-  const check = probe?.layers[layer]
-  if (check === undefined) return evidence('HTTP_PROBE', 'inferred', '未探测')
-  return {
-    source: layer === 'dns' ? 'DNS_PROBE' as const : layer === 'tcp' ? 'TCP_PROBE' as const : layer === 'tls' ? 'TLS_PROBE' as const : 'HTTP_PROBE' as const,
-    confidence: (check.status === 'healthy' ? 'verified' : 'inferred') as 'verified' | 'inferred',
-    value: check.humanMessage,
-    ref: `${probe?.target.id ?? 'probe'}:${layer}`,
-  }
-}
-
-function probeEvidenceList(probe: LayeredProbe | undefined) {
-  return (['tcp', 'http'] as const).map(layer => probeEvidence(probe, layer))
-}
-
-function failureLayerLabel(probe: LayeredProbe | undefined): string {
-  if (probe?.layers.http?.status === 'error') return `HTTP 失败 · ${probe.layers.http.humanMessage}`
-  if (probe?.layers.tls?.status === 'error') return `TLS 失败 · ${probe.layers.tls.humanMessage}`
-  if (probe?.layers.tcp?.status === 'error') return `TCP 失败 · ${probe.layers.tcp.humanMessage}`
-  return '连接失败'
-}
-
-function statusText(status: PathStatus): string {
-  return status === 'healthy' ? '正常' : status === 'error' ? '失败' : status === 'warning' ? '警告' : status === 'not-applicable' ? '不适用' : '未知'
-}

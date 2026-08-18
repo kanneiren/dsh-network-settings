@@ -1,6 +1,7 @@
 /** Scoped Windows configuration operations. Every function mutates exactly one
  * documented scope and returns JSON-shaped after-state when possible. */
-import { inspectWindowsFacts } from '../windows/inspect.ts'
+import { extractJson } from '../runtime/command.ts'
+import { parseWinHttpAdvProxy, parseWinInet, proxyEnvironmentOf } from '../windows/inspect.ts'
 import { runPowerShell } from '../runtime/powershell.ts'
 import { runCommand } from '../runtime/command.ts'
 import type {
@@ -28,12 +29,55 @@ export interface WinHttpProxyPatch {
 
 const INTERNET_SETTINGS = String.raw`HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 
-async function readCurrent() {
-  return (await inspectWindowsFacts({ timeoutMs: 20_000 }))
+/**
+ * Lightweight proxy/env read for the configure layer. Preview/apply only need
+ * WinINet, WinHTTP and env-var state; reusing the full inspection (adapters,
+ * routes, gateway ICMP, listeners, Hosts) made every repair dialog pay for
+ * 2+ full PowerShell sweeps.
+ */
+const LIGHT_READ_SCRIPT = String.raw`
+$ErrorActionPreference = 'SilentlyContinue'
+$inet = Get-ItemProperty '${INTERNET_SETTINGS}' -ErrorAction SilentlyContinue
+$wininet = @{}
+if ($inet) {
+  $wininet.ProxyEnable = [int]$inet.ProxyEnable
+  $wininet.ProxyServer = [string]$inet.ProxyServer
+  $wininet.ProxyOverride = [string]$inet.ProxyOverride
+  $wininet.AutoConfigURL = [string]$inet.AutoConfigURL
+  $wininet.AutoDetect = [bool]$inet.AutoDetect
+}
+$envNames = @('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy')
+$envUser = @{}
+$envMachine = @{}
+foreach ($name in $envNames) {
+  $envUser[$name] = [Environment]::GetEnvironmentVariable($name, 'User')
+  $envMachine[$name] = [Environment]::GetEnvironmentVariable($name, 'Machine')
+}
+[pscustomobject]@{
+  wininet = $wininet
+  advMachine = (netsh winhttp show advproxy setting-scope=machine 2>$null | Out-String)
+  advUser = (netsh winhttp show advproxy setting-scope=user 2>$null | Out-String)
+  envUser = $envUser
+  envMachine = $envMachine
+} | ConvertTo-Json -Depth 5 -Compress
+`
+
+interface LightState {
+  wininet?: Record<string, unknown>
+  advMachine?: string
+  advUser?: string
+  envUser?: Record<string, unknown>
+  envMachine?: Record<string, unknown>
+}
+
+async function readLightState(signal?: AbortSignal): Promise<LightState> {
+  const result = await runPowerShell(LIGHT_READ_SCRIPT, { signal, timeoutMs: 15_000 })
+  if (result.code !== 0) throw new Error(result.stderr.trim() || `light proxy read failed: ${String(result.code)}`)
+  return extractJson<LightState>(result.stdout)
 }
 
 export async function readWinInetProxy(): Promise<WinInetProxyInspection> {
-  return (await readCurrent()).proxy.wininet
+  return parseWinInet((await readLightState()).wininet)
 }
 
 export async function setWinInetUserProxy(patch: WinInetProxyPatch, signal?: AbortSignal): Promise<WinInetProxyInspection> {
@@ -67,11 +111,13 @@ export async function clearWinInetUserProxy(signal?: AbortSignal): Promise<WinIn
 }
 
 export async function readWinHttpUserProxy(): Promise<WinHttpProxyInspection | undefined> {
-  return (await readCurrent()).proxy.winhttp.find(entry => entry.scope === 'user')
+  const state = await readLightState()
+  return parseWinHttpAdvProxy(state.advUser ?? '', 'user')
 }
 
 export async function readWinHttpMachineProxy(): Promise<WinHttpProxyInspection | undefined> {
-  return (await readCurrent()).proxy.winhttp.find(entry => entry.scope === 'machine')
+  const state = await readLightState()
+  return parseWinHttpAdvProxy(state.advMachine ?? '', 'machine')
 }
 
 export async function setWinHttpUserProxy(patch: WinHttpProxyPatch, signal?: AbortSignal): Promise<WinHttpProxyInspection | undefined> {
@@ -106,8 +152,8 @@ export async function setWinHttpMachineProxy(patch: WinHttpProxyPatch, signal?: 
 }
 
 export async function readEnvironmentScope(scope: EnvScopeName): Promise<EnvironmentScopeSnapshot> {
-  const current = await readCurrent()
-  return current.environment.scopes[scope]
+  const state = await readLightState()
+  return proxyEnvironmentOf(scope === 'user' ? state.envUser ?? {} : state.envMachine ?? {})
 }
 
 export async function setEnvironmentVariable(

@@ -84,7 +84,3 @@ export function healthy(check: ProbeCheck | undefined): check is ProbeCheck {
 export function failed(check: ProbeCheck | undefined): check is ProbeCheck {
   return check?.status === 'error'
 }
-
-export function proxyForTarget(endpoints: readonly ProxyEndpoint[], targetHost: string): ProxyEndpoint | undefined {
-  return endpoints.find(endpoint => endpoint.configured && endpoint.host === targetHost)
-}

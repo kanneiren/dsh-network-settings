@@ -357,7 +357,7 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-function attemptSummary(checks: readonly ProbeCheck[], layer: 'tcp' | 'http'): Record<string, unknown> {
+function attemptSummary(checks: readonly ProbeCheck[]): Record<string, unknown> {
   const successes = checks.filter(check => check.status === 'healthy')
   const latencies = successes.map(check => check.latencyMs).filter((value): value is number => value !== undefined)
   return {
@@ -392,7 +392,6 @@ export async function probeTcpRepeated(host: string, port: number, options: Repe
   }
   const status = aggregateStatus(checks)
   const healthyChecks = checks.filter(check => check.status === 'healthy')
-  const last = checks[checks.length - 1]!
   return {
     status,
     humanMessage: status === 'healthy'
@@ -405,7 +404,7 @@ export async function probeTcpRepeated(host: string, port: number, options: Repe
     timestamp: new Date().toISOString(),
     latencyMs: healthyChecks[0]?.latencyMs,
     address: healthyChecks[0]?.address,
-    details: { host, port, ...attemptSummary(checks, 'tcp') },
+    details: { host, port, ...attemptSummary(checks) },
   }
 }
 
@@ -420,7 +419,6 @@ export async function probeHttpRepeated(url: string, options: RepeatedProbeOptio
   }
   const status = aggregateStatus(checks)
   const healthyChecks = checks.filter(check => check.status === 'healthy')
-  const last = checks[checks.length - 1]!
   return {
     status,
     humanMessage: status === 'healthy'
@@ -434,7 +432,7 @@ export async function probeHttpRepeated(url: string, options: RepeatedProbeOptio
     latencyMs: healthyChecks[0]?.latencyMs,
     viaProxy: false,
     url,
-    details: { url, ...attemptSummary(checks, 'http') },
+    details: { url, ...attemptSummary(checks) },
   }
 }
 
