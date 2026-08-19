@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.1
+
+### Fixes
+
+- WSL graphs now show DNS resolution results (`host → address`) in the DNS
+  side branch, matching the Windows side. The WSL DNS probe previously
+  kept only raw resolver output and never reported the parsed addresses.
+
+### Documentation
+
+- README (en/zh) gained a screenshot gallery: the plugin's position inside
+  DSH, the WSL and Windows path lanes, and the grouped network
+  configuration. Private IP addresses are masked to their first two octets
+  and sidebar content is blurred in the captures.
+
 ## v0.2.0
 
 User-facing changes since v0.1.0. Full commit history on GitHub.
