@@ -42,6 +42,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
     "test": "node --test tests/unit/*.test.ts",
     "test:smoke": "node --experimental-strip-types src/host/smoke.ts",
+    "fault-lab": "node --experimental-strip-types scripts/fault-lab.ts",
     "diagnose": "node --experimental-strip-types src/host/smoke.ts --diagnose-only",
     "test:ui": "vitest run",
     "test:all": "npm test && npm run test:ui",
