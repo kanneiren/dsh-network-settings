@@ -244,19 +244,5 @@ export interface NetworkPathSummary {
 }
 
 /** Status precedence used by builders and diagnostics. */
-export function worstPathStatus(statuses: readonly PathStatus[]): PathStatus {
-  if (statuses.includes('error')) return 'error'
-  if (statuses.includes('warning')) return 'warning'
-  if (statuses.includes('unknown')) return 'unknown'
-  if (statuses.includes('not-applicable')) return 'not-applicable'
-  if (statuses.some(status => status === 'healthy')) return 'healthy'
-  return 'unknown'
-}
 
-export function isHealthyPath(status: PathStatus): boolean {
-  return status === 'healthy'
-}
 
-export function isFailedPath(status: PathStatus): boolean {
-  return status === 'error' || status === 'warning'
-}

@@ -1,4 +1,5 @@
-/** Network Core orchestration: runtime → survey → DSH graph → drift → summary. */
+/** Network Core orchestration: runtime → survey → DSH graph → drift → summary. * Module facade: Public surface: buildNetworkReport(), buildTargets(), defaultTarget(). Orchestration: runtime -> survey -> graph -> drift -> summary.
+ */
 import type { ModelServiceTarget, NetworkInspection } from '../model.ts'
 import { buildWindowsNativeDshPath } from './build-windows.ts'
 import { buildWslDshPath } from './build-wsl.ts'

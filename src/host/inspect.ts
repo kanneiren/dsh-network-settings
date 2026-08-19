@@ -1,4 +1,5 @@
-/** Read-only Network Core entry point (Phase 1). */
+/** Read-only Network Core entry point (Phase 1). * Module facade: Public surface: inspectNetwork(). One hard deadline wraps every collector and probe.
+ */
 import type { EnvironmentScopeSnapshot, LayeredProbe, ListenerInspection, ModelServiceTarget, NetworkInspection, ProbeTarget, ProxyEndpoint, WslDistribution } from './model.ts'
 import { inspectWindowsFacts } from './windows/inspect.ts'
 import { inspectWsl } from './wsl/inspect.ts'

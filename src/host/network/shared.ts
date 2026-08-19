@@ -1,4 +1,5 @@
-/** Shared graph-building helpers. Pure functions over the read-only survey. */
+/** Shared graph-building helpers. Pure functions over the read-only survey. * Module facade: Shared vocabulary layer: proxy resolution, endpoint/listener matching, egress chain facts, gateway evidence. Consumed by both graph builders.
+ */
 import type {
   EnvironmentScopeSnapshot, LayeredProbe, ListenerInspection, NetworkInspection,
   ProbeCheck, WindowsInterface, WindowsNetworkInspection,
@@ -11,8 +12,8 @@ import type {
   ProxyEndpoint, ProxyListener, ProxyScheme,
 } from './types.ts'
 
-export const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const
-export const NO_PROXY_KEYS = ['NO_PROXY', 'no_proxy'] as const
+const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const
+const NO_PROXY_KEYS = ['NO_PROXY', 'no_proxy'] as const
 
 export function evidence(
   source: Evidence['source'],
@@ -85,10 +86,6 @@ export function canonicalProxyHost(host: string): string {
   return host.toLowerCase() === 'localhost' ? '127.0.0.1' : host
 }
 
-export function canonicalProxyId(host: string | undefined, port: number | undefined): string | undefined {
-  if (host === undefined || port === undefined || host === '') return undefined
-  return `proxy:${canonicalProxyHost(host)}:${port}`
-}
 
 export function findListener(listeners: readonly ListenerInspection[], host: string, port: number): ProxyListener | undefined {
   const normalized = canonicalProxyHost(host)

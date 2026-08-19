@@ -56,8 +56,3 @@ function dedupe(endpoints: ProxyEndpoint[]): ProxyEndpoint[] {
   return result
 }
 
-export function usableWinHttpProxy(winhttp: readonly WinHttpProxyInspection[]): ProxyEndpoint | undefined {
-  const candidate = winhttp.find(entry => entry.proxyEnabled && entry.proxy !== undefined)
-  if (candidate?.proxy === undefined) return undefined
-  return proxyEndpointsFromValue(candidate.proxy, candidate.scope === 'machine' ? 'winhttp.machine' : 'winhttp.user')[0]
-}

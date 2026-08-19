@@ -1,4 +1,5 @@
-/** Layered probe orchestration (DIRECT / PROXY / SYSTEM). */
+/** Layered probe orchestration (DIRECT / PROXY / SYSTEM). * Module facade: Public surface: probeTarget(). Layered DIRECT/PROXY probing behind one call.
+ */
 import type { LayeredProbe, ProbeCheck, ProbeLayer, ProbePath, ProbeTarget, ProxyEndpoint } from '../model.ts'
 import {
   openHttpTunnel, probeDns, probeHttp, probeHttpRepeated, probeHttpThroughProxy,
@@ -183,7 +184,7 @@ function aggregateAttemptStatus(statuses: Array<'healthy' | 'warning' | 'error' 
 }
 
 /** First usable proxy endpoint from an environment snapshot. */
-export function systemProxyFromEnvironment(env: Record<string, unknown>): ProxyEndpoint | undefined {
+function systemProxyFromEnvironment(env: Record<string, unknown>): ProxyEndpoint | undefined {
   const raw = env['HTTPS_PROXY'] ?? env['https_proxy'] ?? env['HTTP_PROXY'] ?? env['http_proxy']
   if (typeof raw !== 'string' || raw === '') return undefined
   try {

@@ -270,8 +270,3 @@ export interface NetworkInspection {
   timestamp: string
 }
 
-export function statusOf(latencyMs?: number, error?: string): NetworkStatus {
-  if (error !== undefined && error !== '') return 'error'
-  if (latencyMs !== undefined) return 'healthy'
-  return 'not-tested'
-}

@@ -42,7 +42,7 @@ export function parseQuietList(text: string): string[] {
 }
 
 /** Names from `wsl.exe --list --running`. Header/prelude lines are ignored by name matching. */
-export function parseRunningList(text: string): string[] {
+function parseRunningList(text: string): string[] {
   return wslLines(text).map(stripDefaultMarker).filter(name => name !== '')
 }
 

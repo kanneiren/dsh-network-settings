@@ -1,4 +1,5 @@
-/** Scoped configuration coordinator: snapshot before every persistent change. */
+/** Scoped configuration coordinator: snapshot before every persistent change. * Module facade: Public surface: previewConfigure(), applyConfigure(). Every scope flows snapshot -> diff -> confirm -> apply.
+ */
 import { saveSnapshot, updateSnapshotAfter, type SnapshotScope } from '../snapshot/store.ts'
 import { diffJson, summarizeDiff, type DiffEntry } from '../snapshot/diff.ts'
 import type { EnvironmentScopeSnapshot, WinHttpProxyInspection, WinInetProxyInspection } from '../model.ts'

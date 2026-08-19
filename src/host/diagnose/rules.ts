@@ -1,4 +1,5 @@
-/** Deterministic diagnosis rules over Phase 1 read-only inspection results. */
+/** Deterministic diagnosis rules over Phase 1 read-only inspection results. * Module facade: Public surface: runDiagnosis(). Deterministic rules; individual rule* functions are internal test seams.
+ */
 import type {
   EnvironmentScopeSnapshot, LayeredProbe, NetworkStatus, ProbeCheck, ProxyEndpoint, WindowsInspection, WslInspection,
 } from '../model.ts'

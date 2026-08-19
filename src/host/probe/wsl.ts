@@ -1,4 +1,5 @@
-/** WSL in-distribution probes. Capability-based: getent → python → curl/wget. */
+/** WSL in-distribution probes. Capability-based: getent → python → curl/wget. * Module facade: Public surface: runWslScript() + probeWsl*(). In-distro probes; current distro runs local /bin/sh, others via wsl.exe.
+ */
 import type { ProbeCheck } from '../model.ts'
 import { runCommand } from '../runtime/command.ts'
 import { decodeWslCommand } from '../wsl/encoding.ts'

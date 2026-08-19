@@ -23,7 +23,7 @@ export interface AdvancedActionRecord {
 
 const ACTION_HISTORY_FILE = 'action-history.json'
 
-export async function recordAdvancedAction(id: string): Promise<void> {
+async function recordAdvancedAction(id: string): Promise<void> {
   const history = await readJson<AdvancedActionRecord[]>(ACTION_HISTORY_FILE) ?? []
   history.push({ id, executedAt: new Date().toISOString() })
   // Keep the last 50 records.

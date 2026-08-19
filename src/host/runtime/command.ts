@@ -1,4 +1,5 @@
-/** Read-only subprocess runner with timeout, cancellation and output caps. */
+/** Read-only subprocess runner with timeout, cancellation and output caps. * Module facade: Public surface: runCommand(), extractJson(). argv-array subprocess runner with timeout/abort/output caps.
+ */
 import { spawn } from 'node:child_process'
 
 export interface CommandResult {
@@ -144,6 +145,3 @@ export function extractJson<T = unknown>(text: string): T {
   return JSON.parse(text.slice(start, end + 1)) as T
 }
 
-export function isAbortSignal(value: unknown): value is AbortSignal {
-  return typeof AbortSignal !== 'undefined' && value instanceof AbortSignal
-}

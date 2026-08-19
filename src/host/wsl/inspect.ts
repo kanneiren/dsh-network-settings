@@ -1,6 +1,7 @@
 /**
  * WSL read-only discovery and per-distribution inspection.
  * Stopped distributions are NEVER started by this module.
+ * Module facade: Public surface: inspectWsl(), hostCandidates(), wslconfigPaths(). Discovery + per-distro facts; parsers are internal test seams.
  */
 import { homedir } from 'node:os'
 import { readFile } from 'node:fs/promises'

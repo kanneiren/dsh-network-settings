@@ -1,4 +1,5 @@
-/** Low-level network probes: DNS, TCP, TLS, HTTP(S), HTTP CONNECT tunnel. */
+/** Low-level network probes: DNS, TCP, TLS, HTTP(S), HTTP CONNECT tunnel. * Module facade: Public surface: combinedSignal() + the layer probes. Pure-Node sockets, cancellable and time-bounded.
+ */
 import dns from 'node:dns/promises'
 import net from 'node:net'
 import tls from 'node:tls'

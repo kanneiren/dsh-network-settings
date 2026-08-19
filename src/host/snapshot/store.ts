@@ -25,7 +25,7 @@ export interface SnapshotRecord {
   reversible: boolean
 }
 
-export function snapshotsDir(): string {
+function snapshotsDir(): string {
   return join(networkDataDir(), 'snapshots')
 }
 

@@ -2,6 +2,7 @@
  * Windows read-only inspection. One PowerShell process gathers JSON-shaped
  * facts; WinHTTP uses the current `netsh winhttp show advproxy` JSON output.
  * No command in this file mutates system state.
+ * Module facade: Public surface: inspectWindowsFacts(), proxyEnvironmentOf(). One PowerShell sweep -> WindowsInspection; parsers are internal test seams.
  */
 import type {
   EnvironmentScopeSnapshot, HostsInspection, HostsOverride, ListenerInspection, ModelServiceTarget,

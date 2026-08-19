@@ -1,5 +1,168 @@
 # Architecture
 
+## Architecture diagrams
+
+### 1. System layers — two halves, one RPC channel
+
+```mermaid
+flowchart LR
+  subgraph CLIENT["Client half · src/client (React, platform-free)"]
+    direction TB
+    UI["Settings UI<br/>NetworkTab · NetworkGraph · NetworkConfig<br/>RepairSection · AdvancedSection"]
+    SVC["service.ts<br/>typed RPC client"]
+    REP["report.ts<br/>agent report builder"]
+  end
+  subgraph HOST["Host half · src/host (DSH Node process)"]
+    direction TB
+    RPC["index.ts<br/>RPC switch · authority: loopback"]
+    CORE["Network Core<br/>inspection · graph · diagnosis · repair"]
+  end
+  UI --> SVC
+  SVC -- "Connection RPC /dsh-network-settings" --> RPC
+  RPC --> CORE
+  CORE -- "redacted JSON" --> RPC
+  SVC --> REP
+```
+
+The client never executes platform commands; every system action crosses the
+RPC boundary. The wire contract mirrors `src/host/network/types.ts` on the
+client as `src/client/contract.ts`.
+
+### 2. Detection pipeline — data contracts on every edge
+
+```mermaid
+flowchart TB
+  RT["network/runtime.ts<br/>detectRuntime()"]
+  INS["inspect.ts · inspectNetwork()<br/>ONE hard deadline (45–60s)"]
+  WIN["windows/inspect.ts<br/>one PowerShell sweep"]
+  WSL["wsl/inspect.ts<br/>wsl.exe discovery + local /bin/sh facts"]
+  PRB["probe/* · DNS → TCP → TLS → HTTP<br/>node-side + in-distro, layer timeouts"]
+  INSPECTION["NetworkInspection<br/>(serializable data contract)"]
+  GRAPH["network/build-{windows,wsl}.ts<br/>+ network/shared.ts vocabulary"]
+  DRIFT["network/drift.ts<br/>5 drift rules"]
+  RULES["diagnose/rules.ts<br/>9 deterministic rules"]
+  GATE["repair/catalog.ts<br/>confidence ≥ 0.85 + whitelist"]
+  REPORT["BuiltNetworkReport<br/>graph · diagnosis · summary · targets"]
+
+  RT -->|"DetectedRuntime"| INS
+  INS --> WIN --> INSPECTION
+  INS --> WSL --> INSPECTION
+  INS --> PRB --> INSPECTION
+  INSPECTION --> GRAPH
+  GRAPH -->|"NetworkPathGraph"| DRIFT
+  INSPECTION --> RULES
+  GRAPH --> REPORT
+  DRIFT --> REPORT
+  RULES --> REPORT
+  REPORT --> GATE
+```
+
+### 3. Module dependency layers (host half)
+
+```mermaid
+flowchart TD
+  subgraph L0["L0 · infrastructure (effectful primitives)"]
+    CMD["runtime/command"]:::inf
+    PS["runtime/powershell"]:::inf
+    STORE["runtime/store"]:::inf
+    REDACT["redact.ts"]:::inf
+  end
+  subgraph L1["L1 · collectors (platform facts, effectful)"]
+    WINI["windows/inspect"]:::col
+    WSLI["wsl/*"]:::col
+    PROXY["proxy/*"]:::col
+  end
+  subgraph L2["L2 · probes (effectful, time-bounded)"]
+    PNET["probe/net · pure Node"]:::probe
+    PWSL["probe/wsl · distro scripts"]:::probe
+  end
+  subgraph L3["L3 · core (pure over data contracts)"]
+    SHARED["network/shared · vocabulary"]:::core
+    BUILD["network/build-*"]:::core
+    DRIFTM["network/drift"]:::core
+    RULESM["diagnose/rules"]:::core
+    CATM["repair/catalog"]:::core
+  end
+  subgraph L4["L4 · effects (persistent changes)"]
+    CONF["configure/*"]:::eff
+    REPM["repair/* · advanced/hosts/wsl-proxy"]:::eff
+    SNAP["snapshot/* · diff + store"]:::eff
+  end
+  ENTRY["index.ts · RPC entry"]:::entry
+  INSPECT["inspect.ts · orchestration"]:::entry
+  NETIDX["network/index · report assembly"]:::entry
+
+  ENTRY --> INSPECT & NETIDX & CONF & REPM & CATM
+  INSPECT --> WINI & WSLI & PROXY & PNET & PWSL & NETIDX
+  NETIDX --> SHARED --> BUILD --> DRIFTM
+  NETIDX --> RULESM
+  DRIFTM & RULESM --> CATM
+  CONF & REPM --> SNAP
+  WINI & WSLI & PWSL & PS & CONF & REPM --> CMD
+  WINI & CONF & REPM --> PS
+  SNAP & STORE & ENTRY --> REDACT
+  classDef inf fill:#eee
+  classDef col fill:#dfd
+  classDef probe fill:#ddf
+  classDef core fill:#fdd
+  classDef eff fill:#fed
+  classDef entry fill:#fff
+```
+
+Rules of the layering: L3 is pure (no spawn, no fs) and unit-tested with
+recorded fixtures; L1/L2 wrap every platform command behind one facade
+function; L4 is the only place that mutates the system and always goes
+through snapshots.
+
+### 4. Runtime model selection
+
+```mermaid
+flowchart TB
+  PLAT{"process.platform"}
+  PLAT -->|win32| WN["WINDOWS_NATIVE"]
+  PLAT -->|linux| K{"WSL kernel in<br/>/proc/version?"}
+  K -->|"microsoft + WSL_DISTRO_NAME"| WD["WSL_DISTRIBUTION<br/>(facts: local /bin/sh + interop)"]
+  K -->|"container cgroup"| UNS["UNSUPPORTED_RUNTIME"]
+  K -->|"plain linux"| UNS
+  PLAT -->|darwin| MAC["UNSUPPORTED today<br/>(MACOS_NATIVE planned)"]
+  WN --> BW["build-windows.ts"]
+  WD --> BWS["build-wsl.ts"]
+  MAC -.->|planned| BWM["build-macos.ts"]
+```
+
+### 5. Repair recommendation gating and lifecycle
+
+```mermaid
+flowchart LR
+  D["Diagnosis<br/>(code · severity · confidence · actions)"]
+  T{"confidence ≥<br/>RECOMMEND_CONFIDENCE_THRESHOLD<br/>(0.85)?"}
+  M["diagnosisActionOperations()<br/>scope-exact mapping"]
+  W{"operation in the<br/>common whitelist?"}
+  REC["Recommended button<br/>(flush-dns · clear env vars ·<br/>clear system proxy · clear DSH env)"]
+  MAN["Manual catalog only<br/>(admin · reboot · non-recoverable)"]
+  PREV["preview diff"] --> CONFIRM["user confirm"] --> APPLY["apply"] --> SNAP["snapshot"] --> RERUN["re-detect"] --> VER["verify"]
+
+  D --> T -->|yes| M --> W
+  T -->|no| MAN
+  W -->|yes| REC --> PREV
+  W -->|no| MAN
+```
+
+### 6. Testing seams
+
+```mermaid
+flowchart LR
+  FL["scripts/fault-lab.ts<br/>in-process env injection<br/>(interrupt-safe, zero residue)"]
+  PIPE["real pipeline<br/>inspect → graph → diagnosis → gating"]
+  A["assert diagnosis codes<br/>+ egress mode + recommended ops"]
+  UT["tests/unit/*<br/>recorded fixtures"]
+  PARSERS["exported parsers<br/>(documented test seams)"]
+  FL --> PIPE --> A
+  UT --> PARSERS
+  UIT["tests/ui/*<br/>mocked primitives + service"]
+  E2E["tests/e2e · live DSH via Playwright"]
+```
+
 ## Overview
 
 ```text

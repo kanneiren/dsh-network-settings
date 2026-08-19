@@ -197,13 +197,6 @@ export async function clearEnvironmentProxy(scope: EnvScopeName, signal?: AbortS
   return replaceEnvironmentScope(scope, {}, signal)
 }
 
-export async function unsetEnvironmentVariable(
-  scope: EnvScopeName,
-  name: string,
-  signal?: AbortSignal,
-): Promise<EnvironmentScopeSnapshot> {
-  return setEnvironmentVariable(scope, name, '', signal)
-}
 
 /**
  * Machine-scope writes require elevation. The elevated process is started only

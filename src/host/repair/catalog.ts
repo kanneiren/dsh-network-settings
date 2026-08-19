@@ -1,5 +1,6 @@
 /** Atomic repair-operation catalog. Every operation targets one scope and is
- * independent: no operation includes another operation. */
+ * independent: no operation includes another operation. * Module facade: Public surface: repairCatalog(), diagnosisActionOperations(), isRecommendableOperation(), RECOMMEND_CONFIDENCE_THRESHOLD, findRepairOperation().
+ */
 import type { ConfigureRequest } from '../configure/index.ts'
 import type { DiagnosisAction } from '../diagnose/model.ts'
 
