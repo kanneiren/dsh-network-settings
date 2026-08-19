@@ -2,7 +2,7 @@
 # code goes live immediately.
 #
 # Usage:
-#   pwsh scripts/dev-windows-reload.ps1 [-Port 3091]
+#   pwsh scripts/dev-windows-reload.ps1 [-Port 3080]
 #
 # The Windows web profile links the package straight to this checkout
 # (~/.dsh/profiles/web/node_modules/dsh-network-settings -> C:\dsh-network-settings,
@@ -11,7 +11,7 @@
 # the Manager Control pipe is exactly right here: dsh-windows-manager targets
 # the default Windows instance by design.
 param(
-  [int]$Port = 3091
+  [int]$Port = 3080
 )
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot

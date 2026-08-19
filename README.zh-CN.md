@@ -17,6 +17,18 @@ DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断�
 - 持久化修改遵循：**快照 → 预览 → 确认 → 应用 → 重新检测 → 可回滚**。
 - UI 使用 DSH 原生组件与 `--dsw-*` token，不建立独立主题。
 
+## 界面
+
+检测完成后，链路图按真实拓扑绘制——TUN/VPN 虚拟网卡后面自动接出物理网卡与真实网关：
+
+![链路状态](docs/images/win-path-summary.png)
+
+![DSH 网络链路](docs/images/win-path-graph.png)
+
+网络配置按 Windows / DSH 进程 / WSL 分组，展示配置来源与实测验证（如代理端口的监听进程）：
+
+![网络配置](docs/images/win-network-config.png)
+
 ## 安装
 
 ```powershell

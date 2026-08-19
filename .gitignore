@@ -13,6 +13,7 @@ test-results/
 .vscode/
 .idea/
 *.png
+!docs/images/*.png
 *.jpg
 *.jpeg
 *.gif

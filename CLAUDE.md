@@ -39,7 +39,7 @@ DSH_URL=http://127.0.0.1:3091 node tests/e2e/smoke.mjs
 Reload built code into a running DSH (both profiles link `node_modules/dsh-network-settings` to this checkout):
 
 ```powershell
-pwsh scripts/dev-windows-reload.ps1   # build + restart the Windows instance (port 3091)
+pwsh scripts/dev-windows-reload.ps1   # build + restart the Windows instance (port 3080)
 pwsh scripts/dev-wsl-reload.ps1       # build + restart the WSL instance (port 3092)
 ```
 

@@ -1,7 +1,7 @@
 import { chromium } from 'playwright-core'
 import { writeFileSync } from 'node:fs'
 
-const url = process.env.DSH_URL ?? 'http://127.0.0.1:3091'
+const url = process.env.DSH_URL ?? 'http://127.0.0.1:3080'
 const executablePath = process.env.CHROME_PATH ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
 const browser = await chromium.launch({ executablePath, headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })

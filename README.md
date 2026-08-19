@@ -39,6 +39,21 @@
   rollback for persistent changes.
 - **DSH-native UI** — uses DSH primitives and `--dsw-*` tokens only.
 
+## Screenshots
+
+After a check, the path graph reflects the real topology — the physical
+NIC and gateway are chained behind a TUN/VPN adapter:
+
+![Path summary](docs/images/win-path-summary.png)
+
+![DSH network path](docs/images/win-path-graph.png)
+
+Network configuration is grouped by Windows / DSH process / WSL, showing
+configuration sources and verified facts (e.g. the listener process behind
+a proxy port):
+
+![Network configuration](docs/images/win-network-config.png)
+
 ---
 
 ## Install
