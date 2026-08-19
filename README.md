@@ -41,12 +41,21 @@
 
 ## Screenshots
 
-After a check, the path graph reflects the real topology — the physical
-NIC and gateway are chained behind a TUN/VPN adapter:
+The plugin lives in **DSH Settings → Plugins → Network**:
 
-![Path summary](docs/images/win-path-summary.png)
+![The plugin inside DSH](docs/images/wsl-in-dsh.png)
 
-![DSH network path](docs/images/win-path-graph.png)
+After a check, the path graph reflects the real topology. The shot below
+is from DSH running inside Ubuntu (WSL2) — DSH process → distribution →
+WSL NAT → Windows Host → proxy TUN adapter → physical NIC → gateway →
+target:
+
+![DSH network path in WSL](docs/images/wsl-path-graph.png)
+
+The Windows-native DSH path is visualized the same way, chaining the
+physical uplink behind a TUN/VPN adapter:
+
+![DSH network path on Windows](docs/images/win-path-graph.png)
 
 Network configuration is grouped by Windows / DSH process / WSL, showing
 configuration sources and verified facts (e.g. the listener process behind

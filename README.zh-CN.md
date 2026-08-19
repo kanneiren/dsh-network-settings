@@ -19,11 +19,17 @@ DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断�
 
 ## 界面
 
-检测完成后，链路图按真实拓扑绘制——TUN/VPN 虚拟网卡后面自动接出物理网卡与真实网关：
+插件位于 **DSH 设置 → 插件 → 网络**：
 
-![链路状态](docs/images/win-path-summary.png)
+![插件在 DSH 中的位置](docs/images/wsl-in-dsh.png)
 
-![DSH 网络链路](docs/images/win-path-graph.png)
+检测完成后，链路图按真实拓扑绘制。下图来自运行在 Ubuntu（WSL2）中的 DSH——DSH 进程 → 发行版 → WSL NAT → Windows Host → 代理软件 TUN 虚拟网卡 → 物理网卡 → 网关 → 目标网站：
+
+![WSL 中的 DSH 网络链路](docs/images/wsl-path-graph.png)
+
+Windows 原生运行的 DSH 同样可视化，TUN/VPN 虚拟网卡后面自动接出物理出口与真实网关：
+
+![Windows 中的 DSH 网络链路](docs/images/win-path-graph.png)
 
 网络配置按 Windows / DSH 进程 / WSL 分组，展示配置来源与实测验证（如代理端口的监听进程）：
 
