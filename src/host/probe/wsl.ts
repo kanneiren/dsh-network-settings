@@ -85,6 +85,16 @@ export interface WslProbeOptions {
   timeoutMs?: number
 }
 
+/** Extract unique IPv4 addresses from getent/python DNS output lines. */
+export function addressesFromDnsOutput(output: string): string[] {
+  const addresses = new Set<string>()
+  for (const line of output.split(/\r?\n/)) {
+    const first = line.trim().split(/\s+/)[0] ?? ''
+    if (/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(first)) addresses.add(first)
+  }
+  return [...addresses]
+}
+
 export async function probeWslDns(
   distribution: string,
   host: string,
@@ -104,13 +114,14 @@ export async function probeWslDns(
   ].join('\n')
   const result = await runWslScript(distribution, script, options)
   if (result.code === 0) {
+    const addresses = addressesFromDnsOutput(result.stdout)
     return {
       status: 'healthy',
       humanMessage: `${host} 在 WSL 中解析正常`,
       source: `wsl:${distribution}:dns`,
       timestamp: new Date().toISOString(),
       latencyMs: result.durationMs,
-      details: { output: result.stdout.trim() },
+      details: { output: result.stdout.trim(), ...(addresses.length > 0 ? { addresses } : {}) },
     }
   }
   return wslFailure('WSL_DNS_FAILED', `WSL 无法解析 ${host}`, result)

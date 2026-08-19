@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WslScriptResult } from '../../src/host/probe/wsl.ts'
-import { internetCheckFromResult, tcpCheckFromResult } from '../../src/host/probe/wsl.ts'
+import { addressesFromDnsOutput, internetCheckFromResult, tcpCheckFromResult } from '../../src/host/probe/wsl.ts'
 import { hostSegmentStatus } from '../../src/host/network/build-wsl.ts'
 
 function result(overrides: Partial<WslScriptResult> = {}): WslScriptResult {
@@ -98,5 +98,16 @@ describe('hostSegmentStatus', () => {
 
   it('unknown stays unknown', () => {
     assert.equal(hostSegmentStatus('unknown', false), 'unknown')
+  })
+})
+
+describe('WSL DNS address extraction', () => {
+  it('extracts unique IPv4 addresses from getent output', () => {
+    const output = '104.18.12.34     STREAM api.deepseek.com\r\n104.18.12.34     DGRAM\r\n198.18.0.37      STREAM api.deepseek.com\n'
+    assert.deepEqual(addressesFromDnsOutput(output), ['104.18.12.34', '198.18.0.37'])
+  })
+
+  it('returns empty for non-address output', () => {
+    assert.deepEqual(addressesFromDnsOutput('getent: not found\n'), [])
   })
 })
