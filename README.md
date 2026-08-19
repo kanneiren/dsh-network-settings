@@ -41,27 +41,58 @@
 
 ## Screenshots
 
-The plugin lives in **DSH Settings → Plugins → Network**:
+<table>
+<tr><td colspan="2" align="center">
 
-![The plugin inside DSH](docs/images/wsl-in-dsh.png)
+The plugin lives in **DSH Settings → Plugins → Network** (click images to
+enlarge)
 
-After a check, the path graph reflects the real topology. The shot below
-is from DSH running inside Ubuntu (WSL2) — DSH process → distribution →
-WSL NAT → Windows Host → proxy TUN adapter → physical NIC → gateway →
-target:
+<a href="docs/images/wsl-in-dsh.png"><img src="docs/images/wsl-in-dsh.png" width="720" alt="The plugin inside the DSH settings UI"></a>
 
-![DSH network path in WSL](docs/images/wsl-path-graph.png)
+</td></tr>
+<tr>
+<td width="50%" align="center">
 
-The Windows-native DSH path is visualized the same way, chaining the
-physical uplink behind a TUN/VPN adapter:
+<a href="docs/images/wsl-path-graph.png"><img src="docs/images/wsl-path-graph.png" width="380" alt="DSH network path in WSL"></a>
 
-![DSH network path on Windows](docs/images/win-path-graph.png)
+<sub>DSH inside a WSL distribution: DSH → distro → WSL NAT → Windows Host → proxy TUN → physical NIC → gateway → target</sub>
 
-Network configuration is grouped by Windows / DSH process / WSL, showing
-configuration sources and verified facts (e.g. the listener process behind
-a proxy port):
+</td>
+<td width="50%" align="center">
 
-![Network configuration](docs/images/win-network-config.png)
+<a href="docs/images/win-path-graph.png"><img src="docs/images/win-path-graph.png" width="380" alt="DSH network path on Windows"></a>
+
+<sub>Windows-native DSH path, chaining the physical uplink behind a TUN/VPN adapter</sub>
+
+</td>
+</tr>
+<tr>
+<td width="42%" align="center" valign="top">
+
+<a href="docs/images/win-network-config.png"><img src="docs/images/win-network-config.png" width="300" alt="Network configuration"></a>
+
+<sub>Grouped network configuration</sub>
+
+</td>
+<td width="58%" valign="top">
+
+**Network configuration** is grouped by source, every entry traceable:
+
+- **Windows proxy**: WinINet / WinHTTP state, proxy environment variables
+  across all three scopes (both letter cases)
+- **DSH process environment**: runtime model, egress (direct / via proxy
+  with address), **verified listener process** behind the proxy port,
+  process proxy variables
+- **WSL**: distribution environment, network mode (NAT / mirrored),
+  `/etc/wsl.conf` and `.wslconfig`
+- **Advanced**: DNS cache, interfaces & routes, Hosts, first-aid actions
+
+Every persistent change follows snapshot → preview → confirm → apply →
+rollback.
+
+</td>
+</tr>
+</table>
 
 ---
 

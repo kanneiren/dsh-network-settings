@@ -19,21 +19,52 @@ DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断�
 
 ## 界面
 
-插件位于 **DSH 设置 → 插件 → 网络**：
+<table>
+<tr><td colspan="2" align="center">
 
-![插件在 DSH 中的位置](docs/images/wsl-in-dsh.png)
+插件位于 **DSH 设置 → 插件 → 网络**（点击图片可放大）
 
-检测完成后，链路图按真实拓扑绘制。下图来自运行在 Ubuntu（WSL2）中的 DSH——DSH 进程 → 发行版 → WSL NAT → Windows Host → 代理软件 TUN 虚拟网卡 → 物理网卡 → 网关 → 目标网站：
+<a href="docs/images/wsl-in-dsh.png"><img src="docs/images/wsl-in-dsh.png" width="720" alt="插件在 DSH 设置界面中的位置"></a>
 
-![WSL 中的 DSH 网络链路](docs/images/wsl-path-graph.png)
+</td></tr>
+<tr>
+<td width="50%" align="center">
 
-Windows 原生运行的 DSH 同样可视化，TUN/VPN 虚拟网卡后面自动接出物理出口与真实网关：
+<a href="docs/images/wsl-path-graph.png"><img src="docs/images/wsl-path-graph.png" width="380" alt="WSL 中的 DSH 网络链路"></a>
 
-![Windows 中的 DSH 网络链路](docs/images/win-path-graph.png)
+<sub>WSL 发行版中的 DSH 链路：DSH → 发行版 → WSL NAT → Windows Host → 代理 TUN → 物理网卡 → 网关 → 目标</sub>
 
-网络配置按 Windows / DSH 进程 / WSL 分组，展示配置来源与实测验证（如代理端口的监听进程）：
+</td>
+<td width="50%" align="center">
 
-![网络配置](docs/images/win-network-config.png)
+<a href="docs/images/win-path-graph.png"><img src="docs/images/win-path-graph.png" width="380" alt="Windows 中的 DSH 网络链路"></a>
+
+<sub>Windows 原生 DSH 链路：TUN/VPN 虚拟网卡后自动接出物理出口与真实网关</sub>
+
+</td>
+</tr>
+<tr>
+<td width="42%" align="center" valign="top">
+
+<a href="docs/images/win-network-config.png"><img src="docs/images/win-network-config.png" width="300" alt="网络配置"></a>
+
+<sub>网络配置分组视图</sub>
+
+</td>
+<td width="58%" valign="top">
+
+**网络配置**按来源分组，每个配置项可溯源：
+
+- **Windows 代理**：WinINet / WinHTTP 状态、三个作用域的代理环境变量（含大小写）
+- **DSH 进程环境**：运行时模型、出口方式（直连 / 经代理 + 地址）、代理端口的**监听进程实测**、进程代理变量
+- **WSL**：发行版环境变量、网络模式（NAT / mirrored）、`/etc/wsl.conf` 与 `.wslconfig`
+- **高级网络**：DNS 缓存、接口路由、Hosts、系统急救操作
+
+修改类操作全部遵循 快照 → 预览 → 确认 → 应用 → 可回滚。
+
+</td>
+</tr>
+</table>
 
 ## 安装
 
