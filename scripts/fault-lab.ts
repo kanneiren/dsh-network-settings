@@ -18,6 +18,7 @@ import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { inspectNetwork } from '../src/host/inspect.ts'
 import { buildNetworkReport } from '../src/host/network/index.ts'
 import { runDiagnosis } from '../src/host/diagnose/rules.ts'
+import { RECOMMEND_CONFIDENCE_THRESHOLD, diagnosisActionOperations, isRecommendableOperation } from '../src/host/repair/catalog.ts'
 
 const TARGET = { id: 'deepseek', label: 'DeepSeek', host: 'api.deepseek.com', port: 443, url: 'https://api.deepseek.com', kind: 'deepseek' } as const
 const REPORT_FILE = new URL('../.research/fault-lab-report.json', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')
@@ -27,6 +28,10 @@ interface CheckResult {
   egressMode: 'DIRECT' | 'PROXY' | undefined
   endpointSummary: string[]
   chain: string
+  /** Action codes of the graph-level recommended repair hint (gated). */
+  graphRecommended: string[]
+  /** Whitelisted operations the repair/recommended RPC would return. */
+  rpcRecommendedOps: string[]
 }
 
 async function runCheck(): Promise<CheckResult> {
@@ -50,12 +55,21 @@ async function runCheck(): Promise<CheckResult> {
     ...(graph?.diagnostics ?? []).map(item => item.code),
     ...diagnosis.diagnoses.map(item => item.code),
   ])
+  // Same gating as the repair/recommended RPC: diagnoses with confidence
+  // >= threshold, actions mapped to whitelisted common operations.
+  const rpcRecommendedOps = [...(graph?.diagnostics ?? []), ...diagnosis.diagnoses]
+    .filter(item => item.confidence >= RECOMMEND_CONFIDENCE_THRESHOLD)
+    .flatMap(item => item.actions.flatMap(action => diagnosisActionOperations(action)))
+    .filter(operation => isRecommendableOperation(operation.id))
+    .map(operation => operation.id)
   return {
     codes,
     egressMode: egress?.mode,
     endpointSummary: inspection.windows.proxy.endpoints.map(e =>
       `${e.source}=${e.host}:${e.port}${e.listener?.state === 'LISTENING' ? ' listener:' + (e.listener.processName ?? '?') : e.listener?.state === 'NOT_FOUND' ? ' listener:NOT_FOUND' : ''}`),
     chain: (graph?.dshPath.nodes ?? []).map(n => n.label).join(' → '),
+    graphRecommended: graph?.recommendedRepair?.actionCodes ?? [],
+    rpcRecommendedOps: [...new Set(rpcRecommendedOps)],
   }
 }
 
@@ -64,6 +78,8 @@ interface Scenario {
   name: string
   env: Record<string, string>
   expect: (r: CheckResult) => boolean
+  /** Expected operations the recommended-repair UI should surface, if any. */
+  expectRepair: string[]
   describe: (r: CheckResult) => string
 }
 
@@ -75,28 +91,32 @@ const SCENARIOS: Scenario[] = [
     name: 'DSH env residue → dead proxy port (the classic "closed the proxy, no internet")',
     env: { HTTPS_PROXY: 'http://127.0.0.1:7899' },
     expect: r => r.egressMode === 'PROXY' && has(r, 'PROXY_ENDPOINT_UNREACHABLE') && (has(r, 'DRIFT_DSH_PROXY_STALE') || has(r, 'STALE_DSH_PROXY_ENV')),
-    describe: r => `egress=${r.egressMode} codes=[${[...r.codes].join(', ')}]`,
+    expectRepair: ['clear-dsh-process-proxy'],
+    describe: r => `egress=${r.egressMode} codes=[${[...r.codes].join(', ')}] repair=[${r.rpcRecommendedOps.join(', ')}]`,
   },
   {
     id: 'S4',
     name: 'Proxy healthy in WinINet but DSH has no env → DSH egresses DIRECT (no false alarm)',
     env: {},
     expect: r => r.egressMode === 'DIRECT' && !has(r, 'PROXY_ENDPOINT_UNREACHABLE'),
-    describe: r => `egress=${r.egressMode} endpoints=[${r.endpointSummary.join(' | ')}]`,
+    expectRepair: [],
+    describe: r => `egress=${r.egressMode} endpoints=[${r.endpointSummary.join(' | ')}] repair=[${r.rpcRecommendedOps.join(', ')}]`,
   },
   {
     id: 'S5',
     name: 'NO_PROXY bypass → proxy configured but traffic silently goes direct',
     env: { HTTPS_PROXY: 'http://127.0.0.1:7892', NO_PROXY: 'api.deepseek.com' },
     expect: r => r.egressMode === 'DIRECT' && !has(r, 'PROXY_ENDPOINT_UNREACHABLE'),
-    describe: r => `egress=${r.egressMode} codes=[${[...r.codes].join(', ')}]`,
+    expectRepair: [],
+    describe: r => `egress=${r.egressMode} codes=[${[...r.codes].join(', ')}] repair=[${r.rpcRecommendedOps.join(', ')}]`,
   },
   {
     id: 'S6',
     name: 'Port drift → DSH env points at old port, live proxy elsewhere',
     env: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
     expect: r => r.egressMode === 'PROXY' && has(r, 'PROXY_ENDPOINT_UNREACHABLE'),
-    describe: r => `egress=${r.egressMode} endpoints=[${r.endpointSummary.join(' | ')}]`,
+    expectRepair: ['clear-dsh-process-proxy'],
+    describe: r => `egress=${r.egressMode} endpoints=[${r.endpointSummary.join(' | ')}] repair=[${r.rpcRecommendedOps.join(', ')}]`,
   },
 ]
 
@@ -109,7 +129,10 @@ async function runScenario(scenario: Scenario): Promise<{ id: string; name: stri
   try {
     const result = await runCheck()
     const pass = scenario.expect(result)
-    return { id: scenario.id, name: scenario.name, pass, detail: scenario.describe(result), chain: result.chain }
+    const repairPass = scenario.expectRepair.length === 0
+      ? result.rpcRecommendedOps.length === 0
+      : scenario.expectRepair.every(op => result.rpcRecommendedOps.includes(op)) && result.rpcRecommendedOps.length === scenario.expectRepair.length
+    return { id: scenario.id, name: scenario.name, pass: pass && repairPass, detail: `${scenario.describe(result)} | repair-expected=[${scenario.expectRepair.join(', ')}] repair-pass=${repairPass}`, chain: result.chain }
   } finally {
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key]
