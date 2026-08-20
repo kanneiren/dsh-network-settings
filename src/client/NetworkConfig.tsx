@@ -410,6 +410,7 @@ function scopeLabel(scope: 'process' | 'user' | 'machine' | 'dsh'): NetworkLocal
 function dshRuntimeLabel(graph: NetworkPathGraph | undefined, t: T): string {
   if (graph === undefined) return t('sourceUnknown')
   if (graph.runtime.type === 'WINDOWS_NATIVE') return 'Windows'
+  if (graph.runtime.type === 'MACOS_NATIVE') return graph.runtime.os === undefined ? 'macOS' : `${graph.runtime.os.caption} ${graph.runtime.os.version}`
   return `${graph.runtime.registeredName ?? graph.runtime.displayName} · WSL ${String(graph.runtime.wslVersion ?? '?')}`
 }
 

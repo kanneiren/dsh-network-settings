@@ -7,6 +7,7 @@ import { endpointsFromInspection } from './proxy/inspect.ts'
 import { proxyEnvironmentOf } from './windows/inspect.ts'
 import { probeTarget } from './probe/probe.ts'
 import { probeWslDirectInternet, probeWslDns, probeWslProxyInternet, probeWslTcp } from './probe/wsl.ts'
+import { inspectMacFacts } from './mac/inspect.ts'
 import { parseProxyUrl } from './proxy/proxy-url.ts'
 
 export interface InspectNetworkOptions {
@@ -61,13 +62,15 @@ async function inspectNetworkWithDeadline(
   // timeoutMs (60s from the RPC entry) into every subcommand.
   const staticTimeoutMs = Math.min(deadlineMs, 20_000)
 
-  const windows = options.reuse?.windows ?? await inspectWindowsFacts({ signal, timeoutMs: staticTimeoutMs })
+  const isMac = process.platform === 'darwin'
+  const macos = isMac ? await inspectMacFacts({ signal, timeoutMs: staticTimeoutMs }) : undefined
+  const windows = isMac ? undefined : options.reuse?.windows ?? await inspectWindowsFacts({ signal, timeoutMs: staticTimeoutMs })
   const dshFacts = {
     dsh: windows?.environment.scopes.dsh ?? proxyEnvironmentOf(process.env),
     modelServices: options.modelServices ?? [],
   }
-  const wsl = options.reuse !== undefined
-    ? options.reuse.wsl
+  const wsl = isMac || options.reuse !== undefined
+    ? options.reuse?.wsl
     : options.includeWsl === false ? undefined : await inspectWsl({ signal, timeoutMs: Math.min(deadlineMs, 15_000) })
 
   const endpoints = endpointsFromInspection(
@@ -75,8 +78,12 @@ async function inspectNetworkWithDeadline(
     windows?.environment.scopes ?? { process: {}, user: {}, machine: {}, dsh: {} },
     wsl?.distributions ?? [],
   )
-  const annotated = annotateListeners(endpoints, windows?.listeners ?? [])
+  const annotated = annotateListeners(
+    macos === undefined ? endpoints : macEndpoints(macos, dshFacts.dsh),
+    macos?.listeners ?? windows?.listeners ?? [],
+  )
   if (windows !== undefined) windows.proxy.endpoints = annotated
+  if (macos !== undefined) macos.proxy.endpoints = annotated
 
   const probes: LayeredProbe[] = []
   if (options.includeProbes !== false) {
@@ -144,6 +151,7 @@ async function inspectNetworkWithDeadline(
 
   return {
     runtime,
+    ...macos === undefined ? {} : { macos },
     ...windows === undefined ? {} : { windows },
     ...wsl === undefined ? {} : { wsl },
     dsh: dshFacts.dsh,
@@ -151,6 +159,25 @@ async function inspectNetworkWithDeadline(
     probes,
     timestamp,
   }
+}
+
+/** Mac endpoints: scutil system proxy + DSH process env, env first. */
+function macEndpoints(macos: NonNullable<NetworkInspection['macos']>, dshEnv: EnvironmentScopeSnapshot): import('./model.ts').ProxyEndpoint[] {
+  const endpoints: import('./model.ts').ProxyEndpoint[] = []
+  const envRaw = dshEnv['HTTPS_PROXY'] ?? dshEnv['https_proxy'] ?? dshEnv['HTTP_PROXY'] ?? dshEnv['http_proxy']
+  if (typeof envRaw === 'string' && envRaw !== '') {
+    try {
+      const parsed = parseProxyUrl(envRaw)
+      endpoints.push({ source: 'env.process', url: envRaw, host: parsed.host, port: parsed.port, protocol: parsed.protocol, configured: true })
+    } catch { /* invalid proxy URL is surfaced by diagnosis, not here */ }
+  }
+  const scutil = macos.proxy.scutil
+  const host = scutil.httpsHost ?? scutil.httpHost
+  const port = scutil.httpsPort ?? scutil.httpPort
+  if (host !== undefined && port !== undefined && (scutil.httpsEnabled || scutil.httpEnabled)) {
+    endpoints.push({ source: 'macos.scutil', url: `http://${host}:${port}`, host, port, protocol: 'http', configured: true })
+  }
+  return endpoints
 }
 
 function annotateListeners(endpoints: ProxyEndpoint[], listeners: ListenerInspection[]): ProxyEndpoint[] {

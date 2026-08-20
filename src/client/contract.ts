@@ -273,6 +273,13 @@ export interface WindowsNativeRuntime {
   confidence: PathConfidence
 }
 
+export interface MacNativeRuntime {
+  type: 'MACOS_NATIVE'
+  platform: 'darwin'
+  nodeVersion: string
+  os?: { caption: string; version: string; build: string }
+}
+
 export interface WslDistributionRuntime {
   type: 'WSL_DISTRIBUTION'
   confidence: PathConfidence
@@ -378,7 +385,7 @@ export interface NetworkDiagnostic {
 
 export interface NetworkPathGraph {
   model: SupportedRuntimeModel
-  runtime: WindowsNativeRuntime | WslDistributionRuntime
+  runtime: WindowsNativeRuntime | WslDistributionRuntime | MacNativeRuntime
   target: NetworkTarget
   dshPath: NetworkPath
   diagnostics: NetworkDiagnostic[]

@@ -3,6 +3,7 @@
 import type { ModelServiceTarget, NetworkInspection } from '../model.ts'
 import { buildWindowsNativeDshPath } from './build-windows.ts'
 import { buildWslDshPath } from './build-wsl.ts'
+import { buildMacDshPath } from './build-mac.ts'
 import { detectDrift, withDriftRecommendation } from './drift.ts'
 import { collectRuntimeSignals, detectRuntime, finalizeRuntime } from './runtime.ts'
 import type { GraphSurvey } from './survey.ts'
@@ -82,7 +83,9 @@ export function buildNetworkReport(options: BuildGraphOptions): BuiltNetworkRepo
   const windows = options.inspection.windows
   const runtime = detected.type === 'WINDOWS_NATIVE' && windows?.os !== undefined
     ? { ...detected, os: windows.os }
-    : detected
+    : detected.type === 'MACOS_NATIVE' && options.inspection.macos?.os !== undefined
+      ? { ...detected, os: options.inspection.macos.os }
+      : detected
   const { targets, selected } = buildTargets(options.inspection.modelServices, options.targetId)
   const summaryBase: NetworkPathSummary = {
     model: runtime.type,
@@ -95,7 +98,7 @@ export function buildNetworkReport(options: BuildGraphOptions): BuiltNetworkRepo
   }
 
   const survey: GraphSurvey = { runtime, inspection: options.inspection, target: selected }
-  const built = runtime.type === 'WINDOWS_NATIVE' ? buildWindowsNativeDshPath(survey) : buildWslDshPath(survey)
+  const built = runtime.type === 'WINDOWS_NATIVE' ? buildWindowsNativeDshPath(survey) : runtime.type === 'MACOS_NATIVE' ? buildMacDshPath(survey) : buildWslDshPath(survey)
   const graphBase: NetworkPathGraph = {
     model: runtime.type as SupportedRuntimeModel,
     runtime,

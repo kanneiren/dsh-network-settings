@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import type { WslInspection } from '../model.ts'
 import type {
-  DetectedRuntime, PathConfidence, UnsupportedRuntime, WindowsNativeRuntime,
+  DetectedRuntime, MacNativeRuntime, PathConfidence, UnsupportedRuntime, WindowsNativeRuntime,
   WslDistributionRuntime, WslLinuxMetadata,
 } from './types.ts'
 
@@ -87,6 +87,16 @@ export function detectRuntime(input: RuntimeDetectionInput = {}): DetectedRuntim
       platform: 'win32',
       nodeVersion: process.version,
       confidence: env['OS'] === 'Windows_NT' ? 'verified' : 'inferred',
+    }
+    return runtime
+  }
+
+  if (platform === 'darwin') {
+    const runtime: MacNativeRuntime = {
+      type: 'MACOS_NATIVE',
+      platform: 'darwin',
+      nodeVersion: process.version,
+      confidence: 'verified',
     }
     return runtime
   }

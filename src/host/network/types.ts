@@ -9,8 +9,8 @@
  */
 import type { LayeredProbe } from '../model.ts'
 
-export type RuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION' | 'UNSUPPORTED_RUNTIME'
-export type SupportedRuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION'
+export type RuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION' | 'MACOS_NATIVE' | 'UNSUPPORTED_RUNTIME'
+export type SupportedRuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION' | 'MACOS_NATIVE'
 export type PathConfidence = 'verified' | 'inferred' | 'unknown'
 export type PathStatus = 'healthy' | 'warning' | 'error' | 'unknown' | 'not-applicable'
 export type PathNodeRole = 'main' | 'auxiliary'
@@ -88,6 +88,14 @@ export interface WindowsNativeRuntime {
   confidence: PathConfidence
 }
 
+export interface MacNativeRuntime {
+  type: 'MACOS_NATIVE'
+  platform: 'darwin'
+  nodeVersion: string
+  confidence: PathConfidence
+  os?: { caption: string; version: string; build: string }
+}
+
 export type WslNetworkLayerMode =
   | 'WSL1' | 'NAT' | 'MIRRORED' | 'BRIDGED' | 'NONE' | 'VIRTIOPROXY' | 'UNKNOWN'
 
@@ -126,6 +134,7 @@ export interface UnsupportedRuntime {
 
 export type DetectedRuntime =
   | WindowsNativeRuntime
+  | MacNativeRuntime
   | WslDistributionRuntime
   | UnsupportedRuntime
 

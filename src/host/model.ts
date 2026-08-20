@@ -45,6 +45,7 @@ export interface ProbeTarget {
 }
 
 export type ProxySource =
+  | 'macos.scutil'
   | 'wininet.user'
   | 'winhttp.machine'
   | 'winhttp.user'
@@ -260,10 +261,44 @@ export interface WslInspection {
   rawErrors: ProbeCheck[]
 }
 
+/** Parsed `scutil --proxy` dictionary (absent keys mean the proxy is off). */
+export interface MacScutilProxy {
+  httpEnabled: boolean
+  httpsEnabled: boolean
+  socksEnabled: boolean
+  pacEnabled: boolean
+  httpHost?: string
+  httpPort?: number
+  httpsHost?: string
+  httpsPort?: number
+  socksHost?: string
+  socksPort?: number
+  pacUrl?: string
+  exceptions?: string[]
+}
+
+export interface MacInspection {
+  os: { caption: string; version: string; build: string }
+  network: {
+    interfaces: Array<{ name: string; device: string; kind: 'ethernet' | 'wi-fi' | 'vpn' | 'other' }>
+    gateway?: string
+    gatewayInterface?: string
+  }
+  proxy: {
+    scutil: MacScutilProxy
+    endpoints: ProxyEndpoint[]
+  }
+  dns: { nameservers: string[] }
+  hosts: HostsInspection
+  listeners: ListenerInspection[]
+  rawErrors: ProbeCheck[]
+}
+
 export interface NetworkInspection {
   runtime: { platform: NodeJS.Platform; version: string; dshHome?: string }
   /** Windows-side facts. Absent when the host runs an OS without a Windows side. */
   windows?: WindowsInspection
+  macos?: MacInspection
   wsl?: WslInspection
   /** DSH process environment — belongs to DSH, not to any host OS. */
   dsh: EnvironmentScopeSnapshot

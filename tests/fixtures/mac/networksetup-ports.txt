@@ -1,0 +1,11 @@
+
+Hardware Port: Ethernet
+Device: en0
+Ethernet Address: 1e:61:a3:bb:20:15
+
+Hardware Port: Ethernet Adapter (en1)
+Device: en1
+Ethernet Address: 86:d6:dc:38:f3:75
+
+VLAN Configurations
+===================
