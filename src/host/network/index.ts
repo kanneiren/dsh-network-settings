@@ -79,10 +79,11 @@ function modelTargets(models: ModelServiceTarget[]): NetworkTarget[] {
 
 export function buildNetworkReport(options: BuildGraphOptions): BuiltNetworkReport {
   const detected = finalizeRuntime(detectRuntime(collectRuntimeSignals()), options.inspection.wsl)
-  const runtime = detected.type === 'WINDOWS_NATIVE' && options.inspection.windows.os !== undefined
-    ? { ...detected, os: options.inspection.windows.os }
+  const windows = options.inspection.windows
+  const runtime = detected.type === 'WINDOWS_NATIVE' && windows?.os !== undefined
+    ? { ...detected, os: windows.os }
     : detected
-  const { targets, selected } = buildTargets(options.inspection.windows.modelServices, options.targetId)
+  const { targets, selected } = buildTargets(options.inspection.modelServices, options.targetId)
   const summaryBase: NetworkPathSummary = {
     model: runtime.type,
     target: selected,

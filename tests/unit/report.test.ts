@@ -30,9 +30,9 @@ const inspection = {
     },
     hosts: { overrides: [] },
     listeners: [],
-    dshProcessEnvironment: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
-    modelServices: [],
   },
+  dsh: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
+  modelServices: [],
   wsl: {
     available: true,
     version: '2.7.10',

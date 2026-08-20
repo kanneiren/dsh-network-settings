@@ -164,8 +164,9 @@ function snapshotValue(snapshot: EnvironmentScopeSnapshot | undefined, name: str
 }
 
 export function ruleStaleDshProxyEnv(input: DiagnosisInput): RuleResult[] {
-  const dsh = input.windows.dshProcessEnvironment
-  const user = input.windows.environment.scopes.user
+  const dsh = input.dsh
+  const user = input.windows?.environment.scopes.user
+  if (user === undefined) return []
   const stale = PROXY_VARS.flatMap(name => {
     const processValue = snapshotValue(dsh, name)
     if (processValue === undefined || processValue === '') return []
@@ -188,7 +189,8 @@ export function ruleStaleDshProxyEnv(input: DiagnosisInput): RuleResult[] {
 
 export function ruleEnvScopeConflict(input: DiagnosisInput): RuleResult[] {
   const names = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy']
-  const scopes = input.windows.environment.scopes
+  const scopes = input.windows?.environment.scopes
+  if (scopes === undefined) return []
   const conflicts: { name: string; values: { scope: string; value: string }[] }[] = []
   for (const name of names) {
     const values = (['process', 'user', 'machine'] as const).flatMap(scope => {
@@ -288,7 +290,8 @@ function proxyHostOf(value: string): { host: string; port: number } {
 
 export function ruleHostsOverride(input: DiagnosisInput): RuleResult[] {
   const matching: RuleResult['evidence'] = []
-  for (const override of input.windows.hosts.overrides) {
+  const overrides = input.windows?.hosts.overrides ?? []
+  for (const override of overrides) {
     for (const hostname of override.hostnames) {
       const probes = input.probes.filter(probe => probe.target.host === hostname)
       if (probes.length === 0) continue

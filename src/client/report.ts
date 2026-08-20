@@ -29,7 +29,7 @@ function envLines(label: string, env: Record<string, string | undefined> | undef
 }
 
 function runtimeLine(inspection: NetworkInspection | undefined, graph: NetworkPathGraph | undefined): string {
-  const os = inspection?.windows.os
+  const os = inspection?.windows?.os
   const osSuffix = os === undefined ? '' : ` · ${os.caption} build ${os.build}`
   const runtime = graph?.runtime
   if (runtime?.type === 'WSL_DISTRIBUTION') {
@@ -142,12 +142,13 @@ export function buildDiagnosticReport(
     }
   }
 
-  if (inspection !== undefined) {
+  if (inspection?.windows !== undefined) {
+    const windows = inspection.windows
     lines.push('## Windows')
-    const os = inspection.windows.os
+    const os = windows.os
     if (os !== undefined) lines.push(`- OS: ${os.caption} ${os.version} build ${os.build} ${os.architecture}`)
-    const up = inspection.windows.network.interfaces.filter(item => item.status === 'up')
-    const down = inspection.windows.network.interfaces.filter(item => item.status !== 'up')
+    const up = windows.network.interfaces.filter(item => item.status === 'up')
+    const down = windows.network.interfaces.filter(item => item.status !== 'up')
     if (up.length > 0) {
       lines.push('- adapters up:')
       for (const item of up) {
@@ -161,7 +162,7 @@ export function buildDiagnosticReport(
     if (down.length > 0) {
       lines.push(`- adapters down (${down.length}): ${down.map(item => `${item.name} (${item.kind})`).join(', ')}`)
     }
-    const routes = inspection.windows.network.defaultRoutes
+    const routes = windows.network.defaultRoutes
     if (routes.length > 0) {
       lines.push('- default routes:')
       for (const route of routes) lines.push(`  - ${route.destination} via ${route.nextHop} (if ${route.interfaceIndex}${route.metric === undefined ? '' : `, metric ${route.metric}`})`)
@@ -169,12 +170,12 @@ export function buildDiagnosticReport(
     lines.push('')
 
     lines.push('## Proxy')
-    const wininet = inspection.windows.proxy.wininet
+    const wininet = windows.proxy.wininet
     lines.push(`- WinINet: enabled=${String(wininet.enabled)}${wininet.proxyServer === undefined ? '' : ` proxy=${wininet.proxyServer}`}${wininet.autoDetect ? ' autoDetect=true' : ''}${wininet.autoConfigUrl === undefined ? '' : ` pac=${wininet.autoConfigUrl}`}`)
-    for (const entry of inspection.windows.proxy.winhttp) {
+    for (const entry of windows.proxy.winhttp) {
       lines.push(`- WinHTTP ${entry.scope}: enabled=${String(entry.proxyEnabled)}${entry.proxy === undefined ? '' : ` proxy=${entry.proxy}`}`)
     }
-    const endpoints = inspection.windows.proxy.endpoints
+    const endpoints = windows.proxy.endpoints
     if (endpoints.length > 0) {
       lines.push('- endpoints:')
       for (const endpoint of endpoints) {
@@ -186,11 +187,11 @@ export function buildDiagnosticReport(
         lines.push(`  - ${endpoint.source} ${endpoint.host}:${endpoint.port} · ${endpoint.configured ? 'configured' : 'detected'} · ${listener}${endpoint.state === 'CONFIGURED' ? '' : ` · ${endpoint.state}`}`)
       }
     }
-    const scopes = inspection.windows.environment.scopes
+    const scopes = windows.environment.scopes
     envLines('env user', scopes.user, lines)
     envLines('env machine', scopes.machine, lines)
     envLines('env process', scopes.process, lines)
-    envLines('DSH process', inspection.windows.dshProcessEnvironment, lines)
+    envLines('DSH process', inspection.dsh, lines)
 
     const wsl = inspection.wsl
     if (wsl === undefined || !wsl.available) {

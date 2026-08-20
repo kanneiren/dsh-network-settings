@@ -42,7 +42,7 @@ function proxyFailedProbe(): LayeredProbe {
   }
 }
 
-function windowsInspection(dshEnv: Record<string, string | undefined>, listeners: NetworkInspection['windows']['listeners'] = []): NetworkInspection {
+function windowsInspection(dshEnv: Record<string, string | undefined>, listeners: NonNullable<NetworkInspection['windows']>['listeners'] = []): NetworkInspection {
   return {
     runtime: { platform: 'win32', version: 'v22.19.0' },
     windows: {
@@ -55,10 +55,10 @@ function windowsInspection(dshEnv: Record<string, string | undefined>, listeners
       environment: { scopes: { process: {}, user: {}, machine: {}, dsh: dshEnv } },
       hosts: { overrides: [] },
       listeners,
-      dshProcessEnvironment: dshEnv,
-      modelServices: [],
       rawErrors: [],
     },
+    dsh: dshEnv,
+    modelServices: [],
     probes: [],
     timestamp: '2026-01-01T00:00:00.000Z',
   }
@@ -105,7 +105,7 @@ describe('Windows native DSH path builder', () => {
     const inspection = {
       ...base,
       windows: {
-        ...base.windows,
+        ...base.windows!,
         network: {
           interfaces: [
             { name: 'BoostNet', description: 'BoostNet TUN', status: 'up' as const, virtual: true, kind: 'vpn' as const, ipv4: ['198.18.0.1'], ipv6: [], gateways: ['198.18.0.2'], dns: [], interfaceIndex: 5 },
@@ -145,7 +145,7 @@ function wslInspection(): NetworkInspection {
   const base = windowsInspection({ HTTPS_PROXY: 'http://172.28.96.1:7890' }, [{ address: '127.0.0.1', port: 7890, pid: 12345, processName: 'mihomo.exe' }])
   return {
     ...base,
-    windows: { ...base.windows, dshProcessEnvironment: { HTTPS_PROXY: 'http://172.28.96.1:7890' } },
+    dsh: { HTTPS_PROXY: 'http://172.28.96.1:7890' },
     wsl: {
       available: true,
       version: '2.7.10',

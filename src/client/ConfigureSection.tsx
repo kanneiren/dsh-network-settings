@@ -24,10 +24,11 @@ function proxyValue(env: Record<string, string | undefined> | undefined): string
 
 export function ConfigureSection({ inspection, t }: ConfigureSectionProps): ReactNode {
   const [openDisabled, setOpenDisabled] = useState(false)
-  const wininet = inspection.windows.proxy.wininet
-  const winhttpUser = inspection.windows.proxy.winhttp.find(entry => entry.scope === 'user')
-  const userEnvProxy = proxyValue(inspection.windows.environment.scopes.user)
-  const dshEnvProxy = proxyValue(inspection.windows.dshProcessEnvironment)
+  const windows = inspection.windows
+  const wininet = windows?.proxy.wininet ?? { enabled: false, autoDetect: false }
+  const winhttpUser = windows?.proxy.winhttp.find(entry => entry.scope === 'user')
+  const userEnvProxy = proxyValue(windows?.environment.scopes.user ?? {})
+  const dshEnvProxy = proxyValue(inspection.dsh)
 
   const cards: Array<{ key: string; name: string; value: string }> = []
   const disabled: Array<{ key: string; name: string }> = []

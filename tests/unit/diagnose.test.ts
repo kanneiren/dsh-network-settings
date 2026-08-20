@@ -43,8 +43,6 @@ function baseWindows(overrides: Partial<WindowsInspection> = {}): WindowsInspect
     environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
     hosts: { overrides: [] },
     listeners: [],
-    dshProcessEnvironment: {},
-    modelServices: [],
     rawErrors: [],
     ...overrides,
   }
@@ -58,8 +56,8 @@ function wslWith(distro: Partial<WslDistribution>): WslInspection {
   }
 }
 
-function input(windows: WindowsInspection, probes: LayeredProbe[], wsl?: WslInspection, endpoints: ProxyEndpoint[] = [], dshEgress?: { host: string; port: number } | null): DiagnosisInput {
-  return { windows, probes, ...wsl === undefined ? {} : { wsl }, endpoints, ...dshEgress === undefined ? {} : { dshEgress } }
+function input(windows: WindowsInspection, probes: LayeredProbe[], wsl?: WslInspection, endpoints: ProxyEndpoint[] = [], dshEgress?: { host: string; port: number } | null, dsh: DiagnosisInput['dsh'] = {}): DiagnosisInput {
+  return { dsh, windows, probes, ...wsl === undefined ? {} : { wsl }, endpoints, ...dshEgress === undefined ? {} : { dshEgress } }
 }
 
 describe('ruleProxyEndpointUnreachable', () => {
@@ -211,29 +209,26 @@ describe('ruleTlsFailure', () => {
 describe('ruleStaleDshProxyEnv', () => {
   it('fires when DSH has a proxy the User scope no longer has', () => {
     const windows = baseWindows({
-      dshProcessEnvironment: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
-      environment: { scopes: { process: {}, user: {}, machine: {}, dsh: { HTTPS_PROXY: 'http://127.0.0.1:7890' } } },
+      environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
     })
-    const result = ruleStaleDshProxyEnv(input(windows, []))
+    const result = ruleStaleDshProxyEnv(input(windows, [], undefined, [], undefined, { HTTPS_PROXY: 'http://127.0.0.1:7890' }))
     assert.equal(result.length, 1)
     assert.equal(result[0]?.code, 'STALE_DSH_PROXY_ENV')
   })
 
   it('fires when DSH and User values differ', () => {
     const windows = baseWindows({
-      dshProcessEnvironment: { HTTP_PROXY: 'http://127.0.0.1:7890' },
       environment: { scopes: { process: {}, user: { HTTP_PROXY: 'http://127.0.0.1:9999' }, machine: {}, dsh: {} } },
     })
-    const result = ruleStaleDshProxyEnv(input(windows, []))
+    const result = ruleStaleDshProxyEnv(input(windows, [], undefined, [], undefined, { HTTPS_PROXY: 'http://127.0.0.1:7890' }))
     assert.equal(result.length, 1)
   })
 
   it('does not fire when values match or are absent', () => {
     const windows = baseWindows({
-      dshProcessEnvironment: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
       environment: { scopes: { process: {}, user: { HTTPS_PROXY: 'http://127.0.0.1:7890' }, machine: {}, dsh: {} } },
     })
-    const result = ruleStaleDshProxyEnv(input(windows, []))
+    const result = ruleStaleDshProxyEnv(input(windows, [], undefined, [], undefined, { HTTPS_PROXY: 'http://127.0.0.1:7890' }))
     assert.equal(result.length, 0)
   })
 })

@@ -245,8 +245,6 @@ export interface WindowsInspection {
   environment: EnvironmentInspection
   hosts: HostsInspection
   listeners: ListenerInspection[]
-  dshProcessEnvironment: EnvironmentScopeSnapshot
-  modelServices: ModelServiceTarget[]
   rawErrors: ProbeCheck[]
 }
 
@@ -264,9 +262,27 @@ export interface WslInspection {
 
 export interface NetworkInspection {
   runtime: { platform: NodeJS.Platform; version: string; dshHome?: string }
-  windows: WindowsInspection
+  /** Windows-side facts. Absent when the host runs an OS without a Windows side. */
+  windows?: WindowsInspection
   wsl?: WslInspection
+  /** DSH process environment — belongs to DSH, not to any host OS. */
+  dsh: EnvironmentScopeSnapshot
+  modelServices: ModelServiceTarget[]
   probes: LayeredProbe[]
   timestamp: string
+}
+
+export const EMPTY_WINDOWS_INSPECTION: WindowsInspection = {
+  network: { interfaces: [], defaultRoutes: [] },
+  proxy: { wininet: { enabled: false, autoDetect: false }, winhttp: [], endpoints: [] },
+  environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
+  hosts: { overrides: [] },
+  listeners: [],
+  rawErrors: [],
+}
+
+/** Migration accessor: Windows facts when collected, an empty shape otherwise. */
+export function windowsOf(inspection: NetworkInspection): WindowsInspection {
+  return inspection.windows ?? EMPTY_WINDOWS_INSPECTION
 }
 

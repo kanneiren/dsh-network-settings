@@ -8,6 +8,7 @@ import {
   type EgressFacts,
 } from './shared.ts'
 import type { GraphSurvey } from './survey.ts'
+import { windowsOf } from '../model.ts'
 import type {
   NetworkPath, PathEdge, PathEdgeRelation, PathNode, PathStatus,
   ProxyConfiguration, ProxyEndpoint, WslDistributionRuntime,
@@ -39,8 +40,8 @@ export function buildWslDshPath(survey: GraphSurvey): BuiltDshPath {
   const runtime = survey.runtime as WslDistributionRuntime
   const distro = currentDistribution(runtime, survey)
   const { inspection, target } = survey
-  const egress = egressFactsOf(inspection.windows.network)
-  const config = resolveEnvProxy(inspection.windows.dshProcessEnvironment, target, 'DSH_PROCESS_ENV', 'DSH Process / 代理环境变量')
+  const egress = egressFactsOf(windowsOf(inspection).network)
+  const config = resolveEnvProxy(inspection.dsh, target, 'DSH_PROCESS_ENV', 'DSH Process / 代理环境变量')
   return config === undefined
     ? buildWslDirectPath(survey, runtime, distro, egress)
     : buildWslProxyPath(survey, runtime, distro, config, egress)
@@ -69,7 +70,7 @@ function buildWslDirectPath(
   // Windows host hop; a host TCP probe that timed out (dropped SYN, common
   // behind firewalls/VPN TUN) must not mark that segment as failed then.
   const hostSegment = hostSegmentStatus(hostTcp, targetReached)
-  const gatewayReachable = gatewayEvidenceOf(inspection.windows.network, targetReached, gatewayMeasured)
+  const gatewayReachable = gatewayEvidenceOf(windowsOf(inspection).network, targetReached, gatewayMeasured)
   const targetFailed = http === 'error' || tls === 'error' || tcp === 'error'
   const linuxIp = linuxIpv4Of(distro)
   const hostAddress = hostAddressOf(distro)
@@ -158,14 +159,14 @@ function buildWslProxyPath(
 ): BuiltDshPath {
   const { inspection, target } = survey
   const { adapter, adapterIp, gateway, gatewayMeasured } = egress
-  const endpoint = endpointFromConfig(config, inspection.windows.listeners)
+  const endpoint = endpointFromConfig(config, windowsOf(inspection).listeners)
   const probe = endpoint === undefined ? undefined : wslProxyProbeFor(config, distro, inspection.probes)
   const endpointState = endpointStatusFromProbe(probe)
   const effectiveEndpoint: ProxyEndpoint | undefined = endpoint === undefined ? undefined : { ...endpoint, state: endpointState }
   const tcp: PathStatus = statusOfCheck(probe?.layers.tcp)
   const http: PathStatus = statusOfCheck(probe?.layers.http)
   const tls: PathStatus = statusOfCheck(probe?.layers.tls)
-  const gatewayReachable = gatewayEvidenceOf(inspection.windows.network, http === 'healthy', gatewayMeasured)
+  const gatewayReachable = gatewayEvidenceOf(windowsOf(inspection).network, http === 'healthy', gatewayMeasured)
   const endpointHealthy = endpointState === 'USABLE' || endpointState === 'REACHABLE'
   const endpointFailed = endpointState === 'UNREACHABLE' || endpointState === 'UNUSABLE'
   const linuxIp = linuxIpv4Of(distro)

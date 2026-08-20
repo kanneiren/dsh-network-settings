@@ -85,6 +85,15 @@ export interface ProxyEndpoint {
   listener?: { pid: number; processName: string; state?: string }
 }
 
+export interface ModelServiceTarget {
+  provider: string
+  displayName: string
+  active?: boolean
+  settingsNs?: string
+  baseURL?: string
+  baseURLSource?: string
+}
+
 export interface EnvironmentScopeSnapshot {
   [name: string]: string | undefined
 }
@@ -96,8 +105,6 @@ export interface WindowsInspection {
   environment: { scopes: Record<'process' | 'user' | 'machine' | 'dsh', EnvironmentScopeSnapshot> }
   hosts: { overrides: { ip: string; hostnames: string[]; raw: string }[] }
   listeners: { address: string; port: number; pid: number; processName?: string }[]
-  dshProcessEnvironment: EnvironmentScopeSnapshot
-  modelServices: { provider: string; displayName: string; active: boolean; baseURL?: string }[]
 }
 
 export interface WslDistribution {
@@ -139,8 +146,10 @@ export interface WslInspection {
 
 export interface NetworkInspection {
   runtime: { platform: string; version: string; dshHome?: string }
-  windows: WindowsInspection
+  windows?: WindowsInspection
   wsl?: WslInspection
+  dsh: EnvironmentScopeSnapshot
+  modelServices: ModelServiceTarget[]
   probes: LayeredProbe[]
   timestamp: string
 }

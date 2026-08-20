@@ -86,9 +86,11 @@ function wslProxyStale(ctx: DriftContext): NetworkDiagnostic | undefined {
 
 function envScopeDrift(ctx: DriftContext): NetworkDiagnostic | undefined {
   const { graph, survey } = ctx
-  const dshEnv = survey.inspection.windows.dshProcessEnvironment
-  const userEnv = survey.inspection.windows.environment.scopes.user
-  const machineEnv = survey.inspection.windows.environment.scopes.machine
+  const windows = survey.inspection.windows
+  if (windows === undefined) return undefined
+  const dshEnv = survey.inspection.dsh
+  const userEnv = windows.environment.scopes.user
+  const machineEnv = windows.environment.scopes.machine
   const dshProxy = firstProxyValue(dshEnv)
   if (dshProxy === undefined) return undefined
   if (firstProxyValue(userEnv) === dshProxy || firstProxyValue(machineEnv) === dshProxy) return undefined
@@ -109,10 +111,12 @@ function envScopeDrift(ctx: DriftContext): NetworkDiagnostic | undefined {
 function winhttpStale(ctx: DriftContext): NetworkDiagnostic | undefined {
   const { survey, graph } = ctx
   if (graph.dshPath.status !== 'healthy') return undefined
-  for (const item of survey.inspection.windows.proxy.winhttp) {
+  const windows = survey.inspection.windows
+  if (windows === undefined) return undefined
+  for (const item of windows.proxy.winhttp) {
     if (!item.proxyEnabled || item.proxy === undefined || item.proxy === '') continue
     const endpoint = endpointForValue(item.proxy)
-    const listener = endpoint === undefined ? undefined : survey.inspection.windows.listeners.find(entry =>
+    const listener = endpoint === undefined ? undefined : windows.listeners.find(entry =>
       entry.port === endpoint.port
       && (entry.address === endpoint.host || entry.address === '0.0.0.0' || entry.address === '::'))
     if (listener !== undefined) continue
@@ -143,7 +147,7 @@ function wslEnvDivergence(ctx: DriftContext): NetworkDiagnostic | undefined {
   const distroEnv = distro?.network?.environment
   if (distroEnv === undefined) return undefined
   const distroProxy = firstProxyValue(distroEnv)
-  const dshProxy = firstProxyValue(ctx.survey.inspection.windows.dshProcessEnvironment)
+  const dshProxy = firstProxyValue(ctx.survey.inspection.dsh)
   if (distroProxy === undefined || dshProxy === undefined || distroProxy === dshProxy) return undefined
   if (ctx.graph.dshPath.status !== 'healthy') return undefined
 

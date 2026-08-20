@@ -23,6 +23,7 @@ import { openConfigLocation, openWindowsProxySettings } from './configure/open.t
 import { redact } from './redact.ts'
 import { collectModelServiceTargets } from './dsh/model-services.ts'
 import { buildNetworkReport, buildTargets, type NetworkPathSummary } from './network/index.ts'
+import { windowsOf } from './model.ts'
 import type { NetworkTarget, NetworkPathGraph } from './network/types.ts'
 
 export const name = 'dsh-network-settings'
@@ -106,7 +107,7 @@ export function apply(ctx: HostContext): void {
             ...selected.url === undefined ? {} : { url: selected.url },
             kind: selected.kind === 'npm-registry' ? 'npm' : selected.kind === 'custom' ? 'internet' : selected.kind,
           }
-          const reuse = lastInspection !== undefined && lastModelServices !== undefined && lastInspection.windows.rawErrors.length === 0
+          const reuse = lastInspection !== undefined && lastModelServices !== undefined && lastInspection.windows !== undefined && lastInspection.windows.rawErrors.length === 0
             ? lastInspection
             : undefined
           const inspection = await inspectNetworkSafe(ctx, {
@@ -261,10 +262,11 @@ async function inspectNetworkSafe(
 async function diagnoseFrom(inspection: NetworkInspection, graph?: NetworkPathGraph): Promise<DiagnosisReport> {
   const { runDiagnosis } = await import('./diagnose/rules.ts')
   const report = await runDiagnosis({
-    windows: inspection.windows,
+    dsh: inspection.dsh,
+    ...inspection.windows === undefined ? {} : { windows: inspection.windows },
     ...inspection.wsl === undefined ? {} : { wsl: inspection.wsl },
     probes: inspection.probes,
-    endpoints: inspection.windows.proxy.endpoints,
+    endpoints: windowsOf(inspection).proxy.endpoints,
     ...dshEgressOf(graph) === undefined ? {} : { dshEgress: dshEgressOf(graph) },
   })
   if (graph === undefined) return report

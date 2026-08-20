@@ -73,10 +73,11 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
     window.setTimeout(() => { setCopiedPath(undefined) }, 1500)
   }
 
-  const wininet = data.windows.proxy.wininet
-  const winhttp = data.windows.proxy.winhttp
-  const env = data.windows.environment.scopes
-  const dshEnv = data.windows.dshProcessEnvironment
+  const windows = data.windows ?? emptyWindows()
+  const wininet = windows.proxy.wininet
+  const winhttp = windows.proxy.winhttp
+  const env = windows.environment.scopes
+  const dshEnv = data.dsh
   const registeredName = graph?.runtime.type === 'WSL_DISTRIBUTION' ? graph.runtime.registeredName : undefined
   const currentDistro = registeredName === undefined
     ? data.wsl?.distributions.find(item => item.state === 'running')
@@ -365,21 +366,25 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
 function emptyInspection(): NetworkInspection {
   return {
     runtime: { platform: 'unknown', version: '' },
-    windows: {
-      network: { interfaces: [], defaultRoutes: [] },
-      proxy: { wininet: { enabled: false, autoDetect: false }, winhttp: [], endpoints: [] },
-      environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
-      hosts: { overrides: [] },
-      listeners: [],
-      dshProcessEnvironment: {},
-      modelServices: [],
-    },
+    dsh: {},
+    modelServices: [],
+    windows: emptyWindows(),
     probes: [],
     timestamp: '',
   }
 }
 
-function pacSummary(wininet: NetworkInspection['windows']['proxy']['wininet'], t: T): string {
+function emptyWindows(): NonNullable<NetworkInspection['windows']> {
+  return {
+    network: { interfaces: [], defaultRoutes: [] },
+    proxy: { wininet: { enabled: false, autoDetect: false }, winhttp: [], endpoints: [] },
+    environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
+    hosts: { overrides: [] },
+    listeners: [],
+  }
+}
+
+function pacSummary(wininet: NonNullable<NetworkInspection['windows']>['proxy']['wininet'], t: T): string {
   if (wininet.autoConfigUrl !== undefined && wininet.autoConfigUrl !== '') return `PAC · ${wininet.autoConfigUrl}`
   if (wininet.autoDetect) return t('pacAutoDetect')
   return t('currentDisabled')
@@ -416,12 +421,14 @@ function dnsSummary(inspection: NetworkInspection, t: T): string {
   return t('notTestedLabel')
 }
 
-function activeInterfaces(inspection: NetworkInspection): NetworkInspection['windows']['network']['interfaces'] {
-  return inspection.windows.network.interfaces.filter(item => item.status === 'up')
+type WindowsFacts = NonNullable<NetworkInspection['windows']>
+
+function activeInterfaces(inspection: NetworkInspection): WindowsFacts['network']['interfaces'] {
+  return (inspection.windows?.network.interfaces ?? []).filter(item => item.status === 'up')
 }
 
-function hostsFor(inspection: NetworkInspection, graph: NetworkPathGraph | undefined): NetworkInspection['windows']['hosts']['overrides'] {
-  if (graph === undefined) return inspection.windows.hosts.overrides.slice(0, 3)
-  const host = graph.target.host
-  return inspection.windows.hosts.overrides.filter(item => item.hostnames.includes(host)).slice(0, 5)
+function hostsFor(inspection: NetworkInspection, graph: NetworkPathGraph | undefined): NonNullable<NetworkInspection['windows']>['hosts']['overrides'] {
+  const overrides = inspection.windows?.hosts.overrides ?? []
+  if (graph === undefined) return overrides.slice(0, 3)
+  return overrides.filter(item => item.hostnames.includes(graph.target.host)).slice(0, 5)
 }

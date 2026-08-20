@@ -5,6 +5,7 @@ import type {
   ProbeCheck, WindowsInterface, WindowsNetworkInspection,
 } from '../model.ts'
 import { parseNoProxy, matchesNoProxy } from '../proxy/no-proxy.ts'
+import { windowsOf } from '../model.ts'
 import { parseProxyUrl } from '../proxy/proxy-url.ts'
 import { redactProxyUrl } from '../redact.ts'
 import type {
@@ -318,21 +319,21 @@ export function gatewayEvidenceOf(network: WindowsNetworkInspection, targetReach
 }
 
 export function gatewaySubtitle(inspection: NetworkInspection, measured: boolean): string {
-  const network = inspection.windows.network
+  const network = windowsOf(inspection).network
   if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
   if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关邻居 ${network.gatewayNeighborState} · 端到端可达`
   return '端到端探测通过默认网关'
 }
 
 export function gatewayEdgeLabel(inspection: NetworkInspection, measured: boolean): string {
-  const network = inspection.windows.network
+  const network = windowsOf(inspection).network
   if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
   if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关 ${network.gatewayNeighborState}`
   return '端到端可达'
 }
 
 export function gatewayEvidenceValue(inspection: NetworkInspection, measured: boolean): string {
-  const network = inspection.windows.network
+  const network = windowsOf(inspection).network
   if (measured && network.gatewayPing === true) return 'gateway ICMP probe OK'
   if (measured && positiveNeighborState(network.gatewayNeighborState)) return `gateway neighbor state=${network.gatewayNeighborState}`
   return 'end-to-end probe through default route'

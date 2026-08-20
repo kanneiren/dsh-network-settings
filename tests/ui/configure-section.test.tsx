@@ -26,9 +26,8 @@ function inspection(): any {
       environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
       hosts: { overrides: [] },
       listeners: [],
-      dshProcessEnvironment: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
-      modelServices: [],
     },
+    dsh: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
     wsl: {
       available: true,
       globalConfig: { mode: 'mirrored', modeConfigured: true, modeSupported: true, autoProxy: true, dnsTunneling: true },

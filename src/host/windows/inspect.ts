@@ -155,8 +155,6 @@ export async function inspectWindowsFacts(options: InspectWindowsOptions = {}): 
       environment: { scopes: { process: {}, user: {}, machine: {}, dsh: {} } },
       hosts: { overrides: [] },
       listeners: [],
-      dshProcessEnvironment: proxyEnvironmentOf(process.env),
-      modelServices: [],
       rawErrors: [probeError('windows.inspect', error)],
     }
   }
@@ -211,8 +209,6 @@ export async function inspectWindowsFacts(options: InspectWindowsOptions = {}): 
     environment,
     hosts,
     listeners: parseListeners(facts.listeners ?? []),
-    dshProcessEnvironment: environment.scopes.dsh,
-    modelServices: await readModelServiceTargets(),
     rawErrors,
   }
 }
@@ -324,10 +320,6 @@ export function proxyEnvironmentOf(source: Record<string, unknown>): Environment
   }
 }
 
-/** Phase 1 stub: model-service facts are added by the DSH host integration layer. */
-async function readModelServiceTargets(): Promise<ModelServiceTarget[]> {
-  return []
-}
 
 function parseListeners(raw: NonNullable<RawWindowsFacts['listeners']>): ListenerInspection[] {
   return raw.flatMap(entry => {

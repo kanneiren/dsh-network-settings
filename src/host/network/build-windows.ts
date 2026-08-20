@@ -8,6 +8,7 @@ import {
   type EgressFacts,
 } from './shared.ts'
 import type { GraphSurvey } from './survey.ts'
+import { windowsOf } from '../model.ts'
 import type { NetworkPath, PathEdge, PathNode, PathStatus, ProxyConfiguration, ProxyEndpoint } from './types.ts'
 
 export interface BuiltDshPath {
@@ -17,8 +18,9 @@ export interface BuiltDshPath {
 
 export function buildWindowsNativeDshPath(survey: GraphSurvey): BuiltDshPath {
   const { inspection, target } = survey
-  const egress = egressFactsOf(inspection.windows.network)
-  const config = resolveEnvProxy(inspection.windows.dshProcessEnvironment, target, 'DSH_PROCESS_ENV', 'DSH Process / 代理环境变量')
+  const windows = windowsOf(inspection)
+  const egress = egressFactsOf(windows.network)
+  const config = resolveEnvProxy(inspection.dsh, target, 'DSH_PROCESS_ENV', 'DSH Process / 代理环境变量')
   return config === undefined
     ? buildDirectPath(survey, egress)
     : buildProxyPath(survey, config, egress)
@@ -26,13 +28,14 @@ export function buildWindowsNativeDshPath(survey: GraphSurvey): BuiltDshPath {
 
 function buildDirectPath(survey: GraphSurvey, egress: EgressFacts): BuiltDshPath {
   const { inspection, target } = survey
+  const windows = windowsOf(inspection)
   const { adapter, adapterIp, gateway, gatewayMeasured } = egress
   const probe = directProbeFor(target, inspection.probes)
   const tcp: PathStatus = statusOfCheck(probe?.layers.tcp)
   const tls: PathStatus = statusOfCheck(probe?.layers.tls)
   const http: PathStatus = statusOfCheck(probe?.layers.http)
   const targetReached = http === 'healthy' || tls === 'healthy'
-  const gatewayReachable = gatewayEvidenceOf(inspection.windows.network, targetReached, gatewayMeasured)
+  const gatewayReachable = gatewayEvidenceOf(windowsOf(inspection).network, targetReached, gatewayMeasured)
   const adapterStatus: PathStatus = targetReached || tcp === 'healthy' || gatewayReachable ? 'healthy' : 'unknown'
   const targetFailed = http === 'error' || tls === 'error' || tcp === 'error'
   const hostAddress = egress.uplinkIp ?? adapterIp
@@ -108,15 +111,16 @@ function buildDirectPath(survey: GraphSurvey, egress: EgressFacts): BuiltDshPath
 
 function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration, egress: EgressFacts): BuiltDshPath {
   const { inspection, target } = survey
+  const windows = windowsOf(inspection)
   const { adapter, adapterIp, gateway, gatewayMeasured } = egress
-  const endpoint = endpointFromConfig(config, inspection.windows.listeners)
+  const endpoint = endpointFromConfig(config, windows.listeners)
   const probe = endpoint === undefined ? undefined : proxyProbeFor(endpoint, inspection.probes, 'dsh')
   const endpointState = endpointStatusFromProbe(probe)
   const effectiveEndpoint: ProxyEndpoint | undefined = endpoint === undefined ? undefined : { ...endpoint, state: endpointState }
   const tcp: PathStatus = statusOfCheck(probe?.layers.tcp)
   const http: PathStatus = statusOfCheck(probe?.layers.http)
   const tls: PathStatus = statusOfCheck(probe?.layers.tls)
-  const gatewayReachable = gatewayEvidenceOf(inspection.windows.network, http === 'healthy', gatewayMeasured)
+  const gatewayReachable = gatewayEvidenceOf(windowsOf(inspection).network, http === 'healthy', gatewayMeasured)
   const endpointHealthy = endpointState === 'USABLE' || endpointState === 'REACHABLE'
   const endpointFailed = endpointState === 'UNREACHABLE' || endpointState === 'UNUSABLE'
   const hostAddress = egress.uplinkIp ?? adapterIp
@@ -192,7 +196,7 @@ function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration, egress:
 }
 
 function windowsOsLabel(inspection: GraphSurvey['inspection']): string {
-  const os = inspection.windows.os
+  const os = windowsOf(inspection).os
   return os === undefined ? 'Windows' : `${os.caption} · build ${os.build}`
 }
 
@@ -207,12 +211,12 @@ function adapterDetails(adapter: WindowsInterface): Array<{ label: string; value
 }
 
 function routeEvidence(inspection: GraphSurvey['inspection']): string {
-  const route = inspection.windows.network.defaultRoutes[0]
+  const route = windowsOf(inspection).network.defaultRoutes[0]
   return route === undefined ? 'no default route' : `default route via ${route.nextHop} metric ${route.metric ?? '?'}`
 }
 
 function routeLabel(inspection: GraphSurvey['inspection']): string {
-  const route = inspection.windows.network.defaultRoutes[0]
+  const route = windowsOf(inspection).network.defaultRoutes[0]
   return route === undefined ? '默认路由未识别' : `默认路由 · metric ${route.metric ?? '?'}`
 }
 

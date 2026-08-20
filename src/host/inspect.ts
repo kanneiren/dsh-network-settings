@@ -4,6 +4,7 @@ import type { EnvironmentScopeSnapshot, LayeredProbe, ListenerInspection, ModelS
 import { inspectWindowsFacts } from './windows/inspect.ts'
 import { inspectWsl } from './wsl/inspect.ts'
 import { endpointsFromInspection } from './proxy/inspect.ts'
+import { proxyEnvironmentOf } from './windows/inspect.ts'
 import { probeTarget } from './probe/probe.ts'
 import { probeWslDirectInternet, probeWslDns, probeWslProxyInternet, probeWslTcp } from './probe/wsl.ts'
 import { parseProxyUrl } from './proxy/proxy-url.ts'
@@ -61,22 +62,25 @@ async function inspectNetworkWithDeadline(
   const staticTimeoutMs = Math.min(deadlineMs, 20_000)
 
   const windows = options.reuse?.windows ?? await inspectWindowsFacts({ signal, timeoutMs: staticTimeoutMs })
-  windows.modelServices = options.modelServices ?? windows.modelServices
+  const dshFacts = {
+    dsh: windows?.environment.scopes.dsh ?? proxyEnvironmentOf(process.env),
+    modelServices: options.modelServices ?? [],
+  }
   const wsl = options.reuse !== undefined
     ? options.reuse.wsl
     : options.includeWsl === false ? undefined : await inspectWsl({ signal, timeoutMs: Math.min(deadlineMs, 15_000) })
 
   const endpoints = endpointsFromInspection(
-    windows.proxy,
-    windows.environment.scopes,
+    windows?.proxy ?? { wininet: { enabled: false, autoDetect: false }, winhttp: [], endpoints: [] },
+    windows?.environment.scopes ?? { process: {}, user: {}, machine: {}, dsh: {} },
     wsl?.distributions ?? [],
   )
-
-  windows.proxy.endpoints = annotateListeners(endpoints, windows.listeners)
+  const annotated = annotateListeners(endpoints, windows?.listeners ?? [])
+  if (windows !== undefined) windows.proxy.endpoints = annotated
 
   const probes: LayeredProbe[] = []
   if (options.includeProbes !== false) {
-    const targets = [...(options.targets ?? DEFAULT_TARGETS), ...(options.modelServices ?? windows.modelServices).flatMap(modelTargets)]
+    const targets = [...(options.targets ?? DEFAULT_TARGETS), ...(options.modelServices ?? dshFacts.modelServices).flatMap(modelTargets)]
     const plan = options.probePlan ?? 'single'
     const directResults = await Promise.all(targets.map(async target => probeTarget(target, 'direct', { signal, plan })))
     probes.push(...directResults)
@@ -84,8 +88,8 @@ async function inspectNetworkWithDeadline(
     // Probe the proxy the DSH process is actually configured to use, then the
     // system primary proxy when it differs. Configuration drift depends on
     // seeing the DSH endpoint fail/succeed independently of the system proxy.
-    const dshProxy = proxyFromEnvironmentSnapshot(windows.dshProcessEnvironment)
-    const primary = primaryProxy(endpoints)
+    const dshProxy = proxyFromEnvironmentSnapshot(dshFacts.dsh)
+    const primary = primaryProxy(annotated)
     for (const proxy of distinctProxies([dshProxy, primary])) {
       if (signal.aborted) break
       probes.push(...await Promise.all(targets.map(async target => probeTarget(target, 'proxy', { proxy, signal, plan }))))
@@ -138,7 +142,15 @@ async function inspectNetworkWithDeadline(
     }
   }
 
-  return { runtime, windows, ...wsl === undefined ? {} : { wsl }, probes, timestamp }
+  return {
+    runtime,
+    ...windows === undefined ? {} : { windows },
+    ...wsl === undefined ? {} : { wsl },
+    dsh: dshFacts.dsh,
+    modelServices: dshFacts.modelServices,
+    probes,
+    timestamp,
+  }
 }
 
 function annotateListeners(endpoints: ProxyEndpoint[], listeners: ListenerInspection[]): ProxyEndpoint[] {

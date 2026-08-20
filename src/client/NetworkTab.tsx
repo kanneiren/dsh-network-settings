@@ -62,7 +62,7 @@ function rowGroupsFrom(inspection: NetworkInspection | undefined, diagnosis: Dia
     key: 'windows',
     label: t('windows'),
     status: inspection === undefined ? (diagnosis === undefined ? 'not-tested' : windows.status) : windows.status === 'healthy' ? 'healthy' : windows.status,
-    detail: inspection === undefined ? undefined : t('interfaceCount', { count: inspection.windows.network.interfaces.length }),
+    detail: inspection === undefined ? undefined : t('interfaceCount', { count: inspection.windows?.network.interfaces.length ?? 0 }),
   })
 
   const wsl = inspection?.wsl
@@ -75,12 +75,12 @@ function rowGroupsFrom(inspection: NetworkInspection | undefined, diagnosis: Dia
   })
 
   const proxy = summarizeDiagnosis(diagnosis, 'proxy')
-  const proxyConfigured = inspection?.windows.proxy.endpoints.some(item => item.configured) === true
+  const proxyConfigured = inspection?.windows?.proxy.endpoints.some(item => item.configured) === true
   environment.push({
     key: 'proxy',
     label: t('proxy'),
     status: proxyConfigured ? proxy.status : 'not-tested',
-    detail: inspection?.windows.proxy.endpoints.find(item => item.configured)?.url,
+    detail: inspection?.windows?.proxy.endpoints.find(item => item.configured)?.url,
   })
 
   const connectivity: StatusRow[] = []
@@ -109,7 +109,7 @@ function rowGroupsFrom(inspection: NetworkInspection | undefined, diagnosis: Dia
     detail: `${t('direct')}：${directLabel} · ${t('proxyPath')}：${proxyPathLabel}`,
   })
 
-  const model = inspection?.windows.modelServices ?? []
+  const model = inspection?.modelServices ?? []
   const modelProbes = inspection?.probes.filter(probe => probe.target.kind === 'model-service') ?? []
   const modelHealthy = modelProbes.some(probe => probe.layers.http?.status === 'healthy')
   const modelFailed = modelProbes.some(probe => probe.layers.http?.status === 'error' || probe.layers.tls?.status === 'error')
@@ -184,7 +184,8 @@ function ProbeDetails({ probes, t }: { probes: LayeredProbe[]; t: T }): ReactNod
 }
 
 function WindowsDetails({ inspection, t }: { inspection: NetworkInspection; t: T }): ReactNode {
-  const { windows } = inspection
+  const windows = inspection.windows
+  if (windows === undefined) return null
   return (
     <div className={css.detailList}>
       {windows.os === undefined ? null : <div className={css.detailRow}><span className={css.detailName}>Windows</span><span className={css.detailMeta}>{windows.os.caption} {windows.os.build}</span></div>}
