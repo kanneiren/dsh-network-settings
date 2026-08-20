@@ -50,7 +50,7 @@ async function runCheck(): Promise<CheckResult> {
     ...inspection.windows === undefined ? {} : { windows: inspection.windows },
     ...inspection.macos === undefined ? {} : { macos: inspection.macos },
     probes: inspection.probes,
-    endpoints: inspection.windows.proxy.endpoints,
+    endpoints: inspection.windows !== undefined ? inspection.windows.proxy.endpoints : inspection.macos !== undefined ? inspection.macos.proxy.endpoints : [],
     ...(dshEgress === undefined ? {} : { dshEgress }),
   })
   const codes = new Set<string>([
@@ -67,7 +67,7 @@ async function runCheck(): Promise<CheckResult> {
   return {
     codes,
     egressMode: egress?.mode,
-    endpointSummary: inspection.windows.proxy.endpoints.map(e =>
+    endpointSummary: (inspection.windows ?? inspection.macos ?? { proxy: { endpoints: [] } }).proxy.endpoints.map(e =>
       `${e.source}=${e.host}:${e.port}${e.listener?.state === 'LISTENING' ? ' listener:' + (e.listener.processName ?? '?') : e.listener?.state === 'NOT_FOUND' ? ' listener:NOT_FOUND' : ''}`),
     chain: (graph?.dshPath.nodes ?? []).map(n => n.label).join(' → '),
     graphRecommended: graph?.recommendedRepair?.actionCodes ?? [],
