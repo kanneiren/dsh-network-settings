@@ -160,6 +160,8 @@ for (const scenario of selected) {
   results.push({ ...outcome, timestamp: new Date().toISOString() })
 }
 
+import { mkdirSync } from 'node:fs'
+mkdirSync(new URL('../.research', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), { recursive: true })
 const history = existsSync(REPORT_FILE) ? JSON.parse(readFileSync(REPORT_FILE, 'utf8')) as unknown[] : []
 writeFileSync(REPORT_FILE, JSON.stringify([...history, { run: new Date().toISOString(), results }], null, 2))
 const failed = results.filter(r => !r.pass)
