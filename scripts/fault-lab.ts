@@ -46,7 +46,9 @@ async function runCheck(): Promise<CheckResult> {
       }
     : egress?.mode === 'DIRECT' ? null : undefined
   const diagnosis = runDiagnosis({
-    windows: inspection.windows,
+    dsh: inspection.dsh,
+    ...inspection.windows === undefined ? {} : { windows: inspection.windows },
+    ...inspection.macos === undefined ? {} : { macos: inspection.macos },
     probes: inspection.probes,
     endpoints: inspection.windows.proxy.endpoints,
     ...(dshEgress === undefined ? {} : { dshEgress }),

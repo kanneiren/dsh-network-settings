@@ -7,6 +7,8 @@
  * exported is an internal test seam.
  */
 import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { HostsInspection, ListenerInspection, MacInspection, MacScutilProxy, ProbeCheck } from '../model.ts'
 import { runCommand } from '../runtime/command.ts'
 import { parseHostsEntries } from '../repair/hosts.ts'
@@ -142,6 +144,29 @@ export function parseSwVers(text: string): { caption: string; version: string; b
   return { caption: value('ProductName') || 'macOS', version: value('ProductVersion'), build: value('BuildVersion') }
 }
 
+/** Shell profiles where proxy software commonly leaves exports behind. */
+export const MAC_SHELL_PROFILES = ['.zshenv', '.zprofile', '.zshrc', '.bash_profile', '.profile'] as const
+
+/**
+ * Parse proxy exports from shell profile contents. Mirrors the WSL source
+ * scan: macOS has no registry env scopes, so post-install residue lives in
+ * `export HTTPS_PROXY=...` lines of startup files.
+ */
+export function parseMacShellProxyExports(contents: Array<{ file: string; text: string }>): EnvironmentScopeSnapshotLike {
+  const snapshot: Record<string, string> = {}
+  for (const { text } of contents) {
+    for (const line of text.split('\n')) {
+      const m = /^\s*(?:export\s+)?((?:HTTP|HTTPS|ALL|NO)_PROXY|[a-z_]+_proxy)=(["']?)([^"'\n#]+)\2\s*$/.exec(line)
+      const name = m?.[1]
+      const value = m?.[3]?.trim()
+      if (name !== undefined && value !== undefined && value !== '' && snapshot[name] === undefined) snapshot[name] = value
+    }
+  }
+  return proxyEnvironmentOf(snapshot)
+}
+
+type EnvironmentScopeSnapshotLike = ReturnType<typeof proxyEnvironmentOf>
+
 export async function inspectMacFacts(options: InspectMacOptions = {}): Promise<MacInspection> {
   const rawErrors: ProbeCheck[] = []
   const fix = options.fixtures
@@ -165,7 +190,13 @@ export async function inspectMacFacts(options: InspectMacOptions = {}): Promise<
 
   const route = parseMacRoute(routeText)
   const hosts: HostsInspection = { overrides: parseHostsEntries(hostsText) }
+  const shellFiles = await Promise.all(
+    MAC_SHELL_PROFILES.map(async (name): Promise<{ file: string; text: string }> =>
+      ({ file: name, text: await readFile(join(homedir(), name), 'utf8').catch(() => '') })),
+  )
+  const environment = parseMacShellProxyExports(shellFiles.filter(item => item.text !== ''))
   return {
+    ...(Object.keys(environment).length === 0 ? {} : { environment }),
     os: parseSwVers(versText),
     network: {
       interfaces: parseMacHardwarePorts(portsText),

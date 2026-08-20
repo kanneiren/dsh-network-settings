@@ -291,6 +291,8 @@ export interface MacInspection {
   dns: { nameservers: string[] }
   hosts: HostsInspection
   listeners: ListenerInspection[]
+  /** Proxy variables exported by shell profiles (macOS residue habitat). */
+  environment?: EnvironmentScopeSnapshot
   rawErrors: ProbeCheck[]
 }
 

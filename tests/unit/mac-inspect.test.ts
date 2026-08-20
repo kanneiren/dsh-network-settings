@@ -112,3 +112,68 @@ describe('macOS runtime detection', () => {
     assert.equal(runtime.confidence, 'verified')
   })
 })
+
+describe('macOS shell-profile proxy residue', () => {
+  it('parseMacShellProxyExports picks first proxy export per var across profiles', async () => {
+    const { parseMacShellProxyExports } = await import('../../src/host/mac/inspect.ts')
+    const parsed = parseMacShellProxyExports([
+      { file: '.zshenv', text: 'export HTTPS_PROXY=http://127.0.0.1:7890\nexport NO_PROXY=localhost\n# export HTTPS_PROXY=ignored\n' },
+      { file: '.zprofile', text: 'https_proxy=http://127.0.0.1:7890\nexport PATH=/usr/bin\n' },
+    ])
+    assert.equal(parsed.HTTPS_PROXY, 'http://127.0.0.1:7890')
+    assert.equal(parsed.NO_PROXY, 'localhost')
+    assert.equal(parsed.https_proxy, 'http://127.0.0.1:7890')
+    assert.equal('PATH' in parsed, false)
+  })
+
+  it('ruleMacProxyResidue fires for dead shell-profile endpoints, not live ones', async () => {
+    const { ruleMacProxyResidue } = await import('../../src/host/diagnose/rules.ts')
+    const base = (listeners: Array<{ address: string; port: number; pid: number }>) => ({
+      dsh: {},
+      probes: [],
+      endpoints: [],
+      macos: {
+        os: { caption: 'macOS', version: '26.5', build: '25F84' },
+        network: { interfaces: [] },
+        proxy: { scutil: { httpEnabled: false, httpsEnabled: false, socksEnabled: false, pacEnabled: false }, endpoints: [] },
+        dns: { nameservers: [] },
+        hosts: { overrides: [] },
+        listeners,
+        environment: { HTTPS_PROXY: 'http://127.0.0.1:7890' },
+        rawErrors: [],
+      },
+    })
+    const dead = ruleMacProxyResidue(base([]))
+    assert.equal(dead.length, 1)
+    assert.equal(dead[0]?.code, 'MAC_SHELL_PROXY_RESIDUE')
+    assert.equal(dead[0]?.severity, 'error')
+    const live = ruleMacProxyResidue(base([{ address: '127.0.0.1', port: 7890, pid: 1 }]))
+    assert.equal(live.length, 0)
+  })
+
+  it('ruleMacProxyResidue flags enabled scutil proxy without a listener', async () => {
+    const { ruleMacProxyResidue } = await import('../../src/host/diagnose/rules.ts')
+    const result = ruleMacProxyResidue({
+      dsh: {},
+      probes: [],
+      endpoints: [],
+      macos: {
+        os: { caption: 'macOS', version: '26.5', build: '25F84' },
+        network: { interfaces: [] },
+        proxy: { scutil: { httpEnabled: true, httpsEnabled: true, httpHost: '127.0.0.1', httpPort: 7890, httpsHost: '127.0.0.1', httpsPort: 7890, socksEnabled: false, pacEnabled: false }, endpoints: [] },
+        dns: { nameservers: [] },
+        hosts: { overrides: [] },
+        listeners: [],
+        rawErrors: [],
+      },
+    } as never)
+    assert.equal(result.length, 1)
+    assert.equal(result[0]?.code, 'MAC_SCUTIL_PROXY_STALE')
+    assert.equal(result[0]?.severity, 'warning')
+  })
+
+  it('ruleMacProxyResidue stays silent outside macOS', async () => {
+    const { ruleMacProxyResidue } = await import('../../src/host/diagnose/rules.ts')
+    assert.deepEqual(ruleMacProxyResidue({ dsh: {}, probes: [], endpoints: [] }), [])
+  })
+})

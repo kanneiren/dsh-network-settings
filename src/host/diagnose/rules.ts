@@ -286,6 +286,64 @@ function proxyHostOf(value: string): { host: string; port: number } {
   }
 }
 
+// ── macOS rules ─────────────────────────────────────────────────────────────
+
+function macListenerFor(input: DiagnosisInput, host: string, port: number): boolean {
+  return (input.macos?.listeners ?? []).some(entry =>
+    entry.port === port && (entry.address === host || entry.address === '0.0.0.0' || entry.address === '::'))
+}
+
+/**
+ * macOS residue habitat differs from Windows: there are no registry env
+ * scopes, so leftover proxy configuration lives in shell-profile exports
+ * and in the scutil system proxy. Fires when either points at an endpoint
+ * with no listener process — the "closed the proxy app" classic on macOS.
+ */
+export function ruleMacProxyResidue(input: DiagnosisInput): RuleResult[] {
+  if (input.macos === undefined) return []
+  const results: RuleResult[] = []
+
+  const env = input.macos.environment
+  if (env !== undefined) {
+    const stale = PROXY_VARS.flatMap(name => {
+      const value = snapshotValue(env, name)
+      if (value === undefined || value === '') return []
+      const endpoint = proxyHostOf(value)
+      if (endpoint === undefined) return []
+      return macListenerFor(input, endpoint.host, endpoint.port) ? [] : [{ name, value, endpoint }]
+    })
+    if (stale.length > 0) {
+      results.push({
+        code: 'MAC_SHELL_PROXY_RESIDUE',
+        severity: 'error',
+        confidence: 0.9,
+        scope: 'macos',
+        humanMessage: 'Shell 配置文件中残留失效的代理环境变量（代理软件可能已退出）',
+        technicalMessage: stale.map(entry => `${entry.name}=${entry.value} (no listener on ${entry.endpoint.host}:${entry.endpoint.port})`).join(' | '),
+        evidence: stale.map(entry => evidence(`mac:shell:${entry.name}`, `${entry.name}=${entry.value}`, 'warning')),
+        actions: [{ code: 'inspect-mac-shell-profile', scope: 'macos.shell', label: '查看并清理 Shell 配置文件中的代理 export', safe: true }],
+      })
+    }
+  }
+
+  const scutil = input.macos.proxy.scutil
+  const host = scutil.httpsHost ?? scutil.httpHost
+  const port = scutil.httpsPort ?? scutil.httpPort
+  if (host !== undefined && port !== undefined && (scutil.httpsEnabled || scutil.httpEnabled) && !macListenerFor(input, host, port)) {
+    results.push({
+      code: 'MAC_SCUTIL_PROXY_STALE',
+      severity: 'warning',
+      confidence: 0.85,
+      scope: 'macos',
+      humanMessage: '系统代理（scutil）仍指向没有监听进程的地址',
+      technicalMessage: `scutil ${host}:${port} enabled, no listener`,
+      evidence: [evidence('mac:scutil', `${host}:${port}`, 'warning')],
+      actions: [{ code: 'macos-clear-scutil-proxy', scope: 'macos.scutil', label: '关闭 macOS 系统代理（系统设置 → 网络）', safe: true }],
+    })
+  }
+  return results
+}
+
 // ── Hosts rule ──────────────────────────────────────────────────────────────
 
 export function ruleHostsOverride(input: DiagnosisInput): RuleResult[] {
@@ -324,6 +382,7 @@ export function runDiagnosis(input: DiagnosisInput): DiagnosisReport {
     ruleEnvScopeConflict,
     ruleWslProxyUnreachable,
     ruleWslAutoProxyStale,
+    ruleMacProxyResidue,
     ruleHostsOverride,
   ]
   const diagnoses = rules

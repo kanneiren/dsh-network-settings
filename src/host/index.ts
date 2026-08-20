@@ -264,6 +264,7 @@ async function diagnoseFrom(inspection: NetworkInspection, graph?: NetworkPathGr
   const report = await runDiagnosis({
     dsh: inspection.dsh,
     ...inspection.windows === undefined ? {} : { windows: inspection.windows },
+    ...inspection.macos === undefined ? {} : { macos: inspection.macos },
     ...inspection.wsl === undefined ? {} : { wsl: inspection.wsl },
     probes: inspection.probes,
     endpoints: windowsOf(inspection).proxy.endpoints,

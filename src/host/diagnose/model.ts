@@ -1,11 +1,12 @@
 /** Deterministic diagnosis model (Phase 2). No LLM, no network calls. */
 import type {
-  EnvironmentScopeSnapshot, LayeredProbe, NetworkStatus, ProbeCheck, ProxyEndpoint, WindowsInspection, WslInspection,
+  EnvironmentScopeSnapshot, LayeredProbe, MacInspection, NetworkStatus, ProbeCheck, ProxyEndpoint, WindowsInspection, WslInspection,
 } from '../model.ts'
 
 export type DiagnosisSeverity = 'error' | 'warning' | 'info'
 
 export type DiagnosisScope =
+  | 'macos'
   | 'windows'
   | 'wsl'
   | 'proxy'
@@ -47,6 +48,7 @@ export interface DiagnosisInput {
   /** DSH process environment — OS-independent. */
   dsh: EnvironmentScopeSnapshot
   windows?: WindowsInspection
+  macos?: MacInspection
   wsl?: WslInspection
   probes: LayeredProbe[]
   endpoints: ProxyEndpoint[]
