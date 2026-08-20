@@ -1,0 +1,32 @@
+name: collect-mac-fixtures
+
+# One-shot (workflow_dispatch): captures raw macOS command outputs that the
+# dsh-network-settings mac collector parsers will be developed against.
+# Download the artifact and commit it as tests/fixtures/mac/.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: macos-latest
+    steps:
+      - run: mkdir -p out
+      - name: scutil --proxy
+        run: scutil --proxy > out/scutil-proxy.txt
+      - name: networksetup hardware ports
+        run: networksetup -listallhardwareports > out/networksetup-ports.txt
+      - name: route default
+        run: route -n get default > out/route-default.txt || true
+      - name: scutil --dns
+        run: scutil --dns > out/scutil-dns.txt
+      - name: listeners
+        run: lsof -nP -iTCP -sTCP:LISTEN > out/lsof-listeners.txt || true
+      - name: /etc/hosts
+        run: cp /etc/hosts out/hosts.txt
+      - name: os release
+        run: sw_vers > out/sw-vers.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-facts
+          path: out
