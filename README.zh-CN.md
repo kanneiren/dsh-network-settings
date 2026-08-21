@@ -74,7 +74,9 @@ DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL / macOS 网络链�
 dsh plugin --profile web add dsh-network-settings
 ```
 
-再次执行同一条命令即可更新到最新版。
+再次执行同一条命令即可更新到最新版。刚发布不久的版本可能被 pnpm
+的 `minimumReleaseAge` 供应链策略暂缓——用显式版本号安装
+（`dsh plugin --profile web add dsh-network-settings@<版本号>`）或稍后重试。
 
 打开 **设置 → 插件 → 网络**。
 

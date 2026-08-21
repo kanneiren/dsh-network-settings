@@ -105,6 +105,10 @@ dsh plugin --profile web add dsh-network-settings
 ```
 
 Re-running the same command updates the plugin to the latest version.
+Versions published very recently may be held back by pnpm's
+`minimumReleaseAge` supply-chain policy — install with an explicit
+version (`dsh plugin --profile web add dsh-network-settings@<version>`)
+or retry later.
 
 Open **Settings → Plugins → Network**.
 
