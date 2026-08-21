@@ -158,7 +158,7 @@ Click [Copy network report]
 
 | Document | Content |
 |---|---|
-| [Architecture](docs/architecture.md) | modules, runtime models, probes, repair guarantees |
+| [Architecture](docs/architecture.en.md) | modules, runtime models, probes, repair guarantees |
 | [Diagnostics](docs/diagnostics.md) | how results are produced and displayed |
 | [Network first aid](docs/network-first-aid.md) | operations, risks, reliability |
 | [Agent guide](docs/agent-guide.md) | development commands and extension points |

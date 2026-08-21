@@ -25,6 +25,7 @@
   "files": [
     "lib",
     "docs/architecture.md",
+    "docs/architecture.en.md",
     "docs/diagnostics.md",
     "docs/network-first-aid.md",
     "docs/agent-guide.md",
