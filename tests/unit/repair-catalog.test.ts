@@ -23,7 +23,7 @@ describe('repair operation catalog', () => {
     const stale = diagnosisActionOperations({ code: 'STALE_DSH_PROXY_ENV', scope: 'dsh', label: 'x', safe: true })
     assert.deepEqual(stale.map(operation => operation.id), ['clear-dsh-process-proxy'])
     const dns = diagnosisActionOperations({ code: 'DNS_FAILURE', scope: 'dns', label: 'x', safe: true })
-    assert.deepEqual(dns.map(operation => operation.id), ['flush-dns'])
+    assert.deepEqual(dns.map(operation => operation.id), [process.platform === 'darwin' ? 'mac-flush-dns' : 'flush-dns'])
     const unknown = diagnosisActionOperations({ code: 'UNKNOWN_CODE', scope: 'dsh', label: 'x', safe: true })
     assert.equal(unknown.length, 0)
   })
