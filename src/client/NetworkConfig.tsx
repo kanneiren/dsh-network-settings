@@ -21,6 +21,31 @@ export interface NetworkConfigProps {
 
 interface OpenState { proxy: boolean; dsh: boolean; wsl: boolean; advanced: boolean }
 
+
+/** Platform-aware helpers — keep UI components free of runtime.type checks. */
+
+function platformOf(inspection: NetworkInspection | undefined, graph: NetworkPathGraph | undefined): 'windows' | 'wsl' | 'macos' | 'unknown' {
+  if (graph?.runtime.type === 'WSL_DISTRIBUTION') return 'wsl'
+  if (graph?.runtime.type === 'MACOS_NATIVE') return 'macos'
+  if (graph?.runtime.type === 'WINDOWS_NATIVE') return 'windows'
+  if (inspection?.macos !== undefined) return 'macos'
+  if (inspection?.windows !== undefined) return 'windows'
+  return 'unknown'
+}
+
+function hostsPathFor(platform: string): string {
+  if (platform === 'darwin' || platform === 'macos') return '/etc/hosts'
+  if (platform === 'linux') return '/mnt/c/Windows/System32/drivers/etc/hosts'
+  return 'C:\Windows\System32\drivers\etc\hosts'
+}
+
+function runtimeDisplayLabel(graph: NetworkPathGraph | undefined): string {
+  if (graph === undefined) return '未知'
+  if (graph.runtime.type === 'WINDOWS_NATIVE') return 'Windows'
+  if (graph.runtime.type === 'MACOS_NATIVE') return graph.runtime.os === undefined ? 'macOS' : `${graph.runtime.os.caption} ${graph.runtime.os.version}`
+  return `${graph.runtime.registeredName ?? graph.runtime.displayName} · WSL ${String(graph.runtime.wslVersion ?? '?')}`
+}
+
 export function NetworkConfig({ service, inspection, diagnosis, graph, t }: NetworkConfigProps): ReactNode {
   const hasInspection = inspection !== undefined
   const data = inspection ?? emptyInspection()
@@ -80,7 +105,7 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
   const winhttp = windows.proxy.winhttp
   const env = windows.environment.scopes
   const dshEnv = data.dsh
-  const registeredName = graph?.runtime.type === 'WSL_DISTRIBUTION' ? graph.runtime.registeredName : undefined
+  const registeredName = platformOf(data, graph) === 'wsl' && graph?.runtime.type === 'WSL_DISTRIBUTION' ? graph.runtime.registeredName : undefined
   const currentDistro = registeredName === undefined
     ? data.wsl?.distributions.find(item => item.state === 'running')
     : data.wsl?.distributions.find(item => item.state === 'running' && item.name === registeredName)
@@ -454,9 +479,7 @@ function scopeLabel(scope: 'process' | 'user' | 'machine' | 'dsh'): NetworkLocal
 
 function dshRuntimeLabel(graph: NetworkPathGraph | undefined, t: T): string {
   if (graph === undefined) return t('sourceUnknown')
-  if (graph.runtime.type === 'WINDOWS_NATIVE') return 'Windows'
-  if (graph.runtime.type === 'MACOS_NATIVE') return graph.runtime.os === undefined ? 'macOS' : `${graph.runtime.os.caption} ${graph.runtime.os.version}`
-  return `${graph.runtime.registeredName ?? graph.runtime.displayName} · WSL ${String(graph.runtime.wslVersion ?? '?')}`
+  return runtimeDisplayLabel(graph)
 }
 
 function dnsSummary(inspection: NetworkInspection, t: T): string {

@@ -25,13 +25,13 @@ export function evidence(
   return { source, confidence, value, ...ref === undefined ? {} : { ref } }
 }
 
-export function envValue(snapshot: EnvironmentScopeSnapshot | undefined, name: string): string | undefined {
+function envValue(snapshot: EnvironmentScopeSnapshot | undefined, name: string): string | undefined {
   if (snapshot === undefined) return undefined
   const value = snapshot[name as keyof EnvironmentScopeSnapshot]
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 }
 
-export function noProxyRules(snapshot: EnvironmentScopeSnapshot | undefined): string {
+function noProxyRules(snapshot: EnvironmentScopeSnapshot | undefined): string {
   for (const name of NO_PROXY_KEYS) {
     const value = envValue(snapshot, name)
     if (value !== undefined) return value
@@ -79,16 +79,16 @@ export function resolveEnvProxy(
   return undefined
 }
 
-export function toProxyScheme(protocol: 'http' | 'socks' | 'socks5' | 'unknown'): ProxyScheme {
+function toProxyScheme(protocol: 'http' | 'socks' | 'socks5' | 'unknown'): ProxyScheme {
   return protocol === 'socks' ? 'socks' : protocol
 }
 
-export function canonicalProxyHost(host: string): string {
+function canonicalProxyHost(host: string): string {
   return host.toLowerCase() === 'localhost' ? '127.0.0.1' : host
 }
 
 
-export function findListener(listeners: readonly ListenerInspection[], host: string, port: number): ProxyListener | undefined {
+function findListener(listeners: readonly ListenerInspection[], host: string, port: number): ProxyListener | undefined {
   const normalized = canonicalProxyHost(host)
   const listener = listeners.find(entry =>
     entry.port === port
@@ -193,7 +193,7 @@ export function dnsBranchFromProbe(probe: LayeredProbe | undefined, target: Netw
   }
 }
 
-export function selectActiveAdapter(network: WindowsNetworkInspection): WindowsInterface | undefined {
+function selectActiveAdapter(network: WindowsNetworkInspection): WindowsInterface | undefined {
   const routes = [...network.defaultRoutes].sort((left, right) => (left.metric ?? 9999) - (right.metric ?? 9999))
   for (const route of routes) {
     const adapter = network.interfaces.find(item => item.status === 'up' && matchesInterfaceIndex(item, route.interfaceIndex))
@@ -213,7 +213,7 @@ const NON_PHYSICAL_KINDS: ReadonlySet<string> = new Set([
  * (Wi-Fi/Ethernet); the graph shows both hops instead of presenting the TUN's
  * virtual addresses as the whole story.
  */
-export function selectUplinkAdapter(network: WindowsNetworkInspection): WindowsInterface | undefined {
+function selectUplinkAdapter(network: WindowsNetworkInspection): WindowsInterface | undefined {
   const physical = network.interfaces.filter(item =>
     item.status === 'up' && !item.virtual && !NON_PHYSICAL_KINDS.has(item.kind) && item.ipv4.length > 0)
   const routes = [...network.defaultRoutes].sort((left, right) => (left.metric ?? 9999) - (right.metric ?? 9999))
@@ -225,7 +225,7 @@ export function selectUplinkAdapter(network: WindowsNetworkInspection): WindowsI
 }
 
 /** True when both entries describe the same adapter (index preferred). */
-export function sameAdapter(left: WindowsInterface | undefined, right: WindowsInterface | undefined): boolean {
+function sameAdapter(left: WindowsInterface | undefined, right: WindowsInterface | undefined): boolean {
   if (left === undefined || right === undefined) return false
   if (left.interfaceIndex !== undefined && right.interfaceIndex !== undefined) return left.interfaceIndex === right.interfaceIndex
   return left.name === right.name
@@ -236,7 +236,7 @@ function matchesInterfaceIndex(adapter: WindowsInterface, interfaceIndex: number
   return interfaceIndex === 0 || adapter.ipv4.length > 0
 }
 
-export function gatewayOf(adapter: WindowsInterface | undefined): string | undefined {
+function gatewayOf(adapter: WindowsInterface | undefined): string | undefined {
   return adapter?.gateways[0]
 }
 
@@ -247,7 +247,7 @@ export function interfaceLabel(adapter: WindowsInterface | undefined): string {
   return adapter.name || adapter.description
 }
 
-export function interfaceIpv4(adapter: WindowsInterface | undefined): string | undefined {
+function interfaceIpv4(adapter: WindowsInterface | undefined): string | undefined {
   return adapter?.ipv4[0]
 }
 
@@ -311,31 +311,30 @@ export function positiveNeighborState(state: string | undefined): boolean {
   return state === 'Reachable' || state === 'Stale' || state === 'Permanent' || state === 'Probe' || state === 'Delay'
 }
 
-/** ICMP/neighbor evidence is only claimed for the gateway it was measured against. */
-export function gatewayEvidenceOf(network: WindowsNetworkInspection, targetReached: boolean, measured: boolean): boolean {
+/** Gateway evidence is only claimed for the gateway it was measured against. */
+export function gatewayEvidenceOf(network: GraphSurvey_type, targetReached: boolean, measured: boolean): boolean {
   if (measured && network.gatewayPing === true) return true
   if (measured && positiveNeighborState(network.gatewayNeighborState)) return true
   return targetReached
 }
 
-export function gatewaySubtitle(inspection: NetworkInspection, measured: boolean): string {
-  const network = windowsOf(inspection).network
-  if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
-  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关邻居 ${network.gatewayNeighborState} · 端到端可达`
-  return '端到端探测通过默认网关'
-}
+type GraphSurvey_type = import('../model.ts').NetworkInspection['windows'] extends infer W ? NonNullable<W> extends { network: infer N } ? N : never : never
 
-export function gatewayEdgeLabel(inspection: NetworkInspection, measured: boolean): string {
-  const network = windowsOf(inspection).network
-  if (measured && network.gatewayPing === true) return '网关 ICMP 可达'
-  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `网关 ${network.gatewayNeighborState}`
-  return '端到端可达'
-}
-
-export function gatewayEvidenceValue(inspection: NetworkInspection, measured: boolean): string {
-  const network = windowsOf(inspection).network
-  if (measured && network.gatewayPing === true) return 'gateway ICMP probe OK'
-  if (measured && positiveNeighborState(network.gatewayNeighborState)) return `gateway neighbor state=${network.gatewayNeighborState}`
+/** Human-readable gateway evidence label. mode: 'subtitle' | 'edge' | 'value'. */
+export function gatewayEvidenceLabel(network: GraphSurvey_type, measured: boolean, mode: 'subtitle' | 'edge' | 'value'): string {
+  if (measured && network.gatewayPing === true) {
+    if (mode === 'subtitle') return '网关 ICMP 可达'
+    if (mode === 'edge') return '网关 ICMP 可达'
+    return 'gateway ICMP probe OK'
+  }
+  if (measured && positiveNeighborState(network.gatewayNeighborState)) {
+    const state = network.gatewayNeighborState ?? ''
+    if (mode === 'subtitle') return `网关邻居 ${state} · 端到端可达`
+    if (mode === 'edge') return `网关 ${state}`
+    return `gateway neighbor state=${state}`
+  }
+  if (mode === 'subtitle') return '端到端探测通过默认网关'
+  if (mode === 'edge') return '端到端可达'
   return 'end-to-end probe through default route'
 }
 
@@ -365,4 +364,39 @@ export function failureLayerLabel(probe: LayeredProbe | undefined): string {
 
 export function statusText(status: PathStatus): string {
   return status === 'healthy' ? '正常' : status === 'error' ? '失败' : status === 'warning' ? '警告' : status === 'not-applicable' ? '不适用' : '未知'
+}
+
+// ── Shared node factories ───────────────────────────────────────────────────
+// The three graph builders assemble the same core nodes with platform-specific
+// subtitles and addresses; these factories capture the common structure.
+
+export function processNode(subtitle: string): PathNode {
+  return { id: 'dsh:process', type: 'PROCESS', role: 'main', label: 'DSH', subtitle, status: 'healthy' }
+}
+
+export function targetNode(target: { display: string; label: string; port?: number }, status: PathStatus): PathNode {
+  return {
+    id: 'dsh:target', type: 'TARGET', role: 'main', label: target.display, subtitle: target.label,
+    ...target.port === undefined ? {} : { port: target.port },
+    status,
+  }
+}
+
+export function gatewayNode(address: string | undefined, status: PathStatus, subtitle: string): PathNode {
+  return {
+    id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway',
+    ...address === undefined ? {} : { address },
+    status, subtitle,
+  }
+}
+
+export function internetNode(status: PathStatus): PathNode {
+  return { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status }
+}
+
+export function targetEdge(status: PathStatus, label: string, evidenceItems: Evidence[]): PathEdge {
+  return {
+    from: 'dsh:internet', to: 'dsh:target', relation: 'TARGET_CONNECTION', status, label,
+    evidence: evidenceItems,
+  }
 }

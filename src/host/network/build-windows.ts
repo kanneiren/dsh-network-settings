@@ -2,8 +2,8 @@
 import type { LayeredProbe, WindowsInterface } from '../model.ts'
 import {
   directProbeFor, dnsBranchFromProbe, egressFactsOf, endpointFromConfig, endpointStatusFromProbe,
-  evidence, failureLayerLabel, gatewayEdgeLabel, gatewayEvidenceOf, gatewayEvidenceValue,
-  gatewaySubtitle, interfaceLabel, pathStatusOfProbe, probeEvidence, probeEvidenceList,
+  evidence, failureLayerLabel, gatewayEvidenceOf, gatewayEvidenceLabel,
+  interfaceLabel, pathStatusOfProbe, probeEvidence, probeEvidenceList,
   proxyProbeFor, resolveEnvProxy, statusOfCheck, statusText, uplinkEdges, uplinkNodes,
   type EgressFacts,
 } from './shared.ts'
@@ -60,10 +60,10 @@ function buildDirectPath(survey: GraphSurvey, egress: EgressFacts): BuiltDshPath
     ...uplinkNodes(egress, adapterStatus),
     {
       id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway',
-      subtitle: gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewaySubtitle(inspection, gatewayMeasured) : '网关未响应探测 · 可能禁 ping',
+      subtitle: gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'subtitle') : '网关未响应探测 · 可能禁 ping',
       ...gateway === undefined ? {} : { address: gateway },
       status: gatewayReachable ? 'healthy' : 'unknown',
-      evidence: [evidence('WINDOWS_ROUTE', 'verified', gateway === undefined ? 'no default gateway' : `default gateway ${gateway}`), evidence('WINDOWS_API', gatewayReachable ? 'verified' : 'inferred', gatewayReachable ? gatewayEvidenceValue(inspection, gatewayMeasured) : 'gateway ICMP/neighbor probe failed or blocked')],
+      evidence: [evidence('WINDOWS_ROUTE', 'verified', gateway === undefined ? 'no default gateway' : `default gateway ${gateway}`), evidence('WINDOWS_API', gatewayReachable ? 'verified' : 'inferred', gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'value') : 'gateway ICMP/neighbor probe failed or blocked')],
     },
     {
       id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet',
@@ -83,7 +83,7 @@ function buildDirectPath(survey: GraphSurvey, egress: EgressFacts): BuiltDshPath
     { from: 'dsh:process', to: 'dsh:host', relation: 'DIRECT', status: 'healthy', label: '本机网络栈', evidence: [evidence('WINDOWS_API', 'verified', 'process runs on Windows')] },
     { from: 'dsh:host', to: 'dsh:adapter', relation: 'ROUTE', status: adapterStatus, label: routeLabel(inspection), evidence: [evidence('WINDOWS_ROUTE', 'verified', routeEvidence(inspection))] },
     ...uplinkEdges(egress, adapterStatus),
-    { from: egress.uplink === undefined ? 'dsh:adapter' : 'dsh:uplink', to: 'dsh:gateway', relation: 'ROUTE', status: gatewayReachable ? 'healthy' : 'unknown', label: gateway === undefined ? '无默认网关' : gatewayReachable ? gatewayEdgeLabel(inspection, gatewayMeasured) : '下一跳' },
+    { from: egress.uplink === undefined ? 'dsh:adapter' : 'dsh:uplink', to: 'dsh:gateway', relation: 'ROUTE', status: gatewayReachable ? 'healthy' : 'unknown', label: gateway === undefined ? '无默认网关' : gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'edge') : '下一跳' },
     { from: 'dsh:gateway', to: 'dsh:internet', relation: 'ROUTE', status: targetReached || gatewayReachable ? 'healthy' : 'unknown', label: '默认路由' },
     {
       from: 'dsh:internet', to: 'dsh:target', relation: 'TARGET_CONNECTION',
@@ -153,7 +153,7 @@ function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration, egress:
       details: adapter === undefined ? [] : adapterDetails(adapter),
     },
     ...uplinkNodes(egress, adapterStatus),
-    { id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway', subtitle: gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewaySubtitle(inspection, gatewayMeasured) : '网关未响应探测 · 可能禁 ping', ...gateway === undefined ? {} : { address: gateway }, status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown' },
+    { id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway', subtitle: gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'subtitle') : '网关未响应探测 · 可能禁 ping', ...gateway === undefined ? {} : { address: gateway }, status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown' },
     { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown' },
     {
       id: 'dsh:target', type: 'TARGET', role: 'main', label: target.display, subtitle: target.label,
@@ -169,7 +169,7 @@ function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration, egress:
     { from: 'dsh:host', to: 'dsh:proxy', relation: 'PROXY', status: proxyEdgeStatus, label: config.source, evidence: [...config.evidence, ...probeEvidenceList(probe)] },
     { from: 'dsh:proxy', to: 'dsh:adapter', relation: 'ROUTE', status: downstream, label: endpointFailed ? '未到达' : '代理进程出站（Windows 路由推断）' },
     ...uplinkEdges(egress, adapterStatus),
-    { from: egress.uplink === undefined ? 'dsh:adapter' : 'dsh:uplink', to: 'dsh:gateway', relation: 'ROUTE', status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown', label: gateway === undefined ? '无默认网关' : gatewayReachable ? gatewayEdgeLabel(inspection, gatewayMeasured) : '下一跳' },
+    { from: egress.uplink === undefined ? 'dsh:adapter' : 'dsh:uplink', to: 'dsh:gateway', relation: 'ROUTE', status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown', label: gateway === undefined ? '无默认网关' : gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'edge') : '下一跳' },
     { from: 'dsh:gateway', to: 'dsh:internet', relation: 'ROUTE', status: endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown', label: '默认路由' },
     {
       from: 'dsh:internet', to: 'dsh:target', relation: 'TARGET_CONNECTION', status: targetStatus,
