@@ -169,7 +169,7 @@ Click [Copy network report]
 
 ## Support
 
-- DSH: `@deepseek-ai/dsh >= 0.1.0-rc.6` (Web profile)
+- DSH: `@deepseek-ai/dsh >= 0.1.0-rc.6` (tested 0.1.0-rc.7 – 0.1.1-rc.2; Web profile)
 - Platform: Windows 10/11 with WSL; macOS (CI-verified, real-machine
   validation pending)
 - All network checks are local and read-only unless you explicitly confirm a

@@ -127,7 +127,7 @@ allowBuilds:
 
 ## 支持
 
-- DSH：`@deepseek-ai/dsh >= 0.1.0-rc.6`（Web profile）
+- DSH：`@deepseek-ai/dsh >= 0.1.0-rc.6`（实测 0.1.0-rc.7 – 0.1.1-rc.2；Web profile）
 - 平台：Windows 10/11 + WSL；macOS（CI 已验证，真机验收待做）
 - 所有检测默认只读，只有用户明确确认后才修改配置
 
