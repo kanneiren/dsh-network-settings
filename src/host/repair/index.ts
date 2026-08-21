@@ -1,6 +1,6 @@
 /** Repair: rollback-first restoration plus action-to-config mapping. */
 import { latestSnapshot, listSnapshots, type SnapshotRecord, type SnapshotScope } from '../snapshot/store.ts'
-import { findRepairOperation, type RepairOperation } from './catalog.ts'
+import { findRepairOperation, platformMatches, type RepairOperation } from './catalog.ts'
 import { advancedCatalog, runAdvancedAction, type AdvancedAction, type AdvancedRunResult } from './advanced.ts'
 import { rollbackWslSnapshot } from './wsl-proxy.ts'
 import { rollbackHostsSnapshot } from './hosts.ts'
@@ -121,6 +121,7 @@ export function actionToConfigureRequest(action: DiagnosisAction): ConfigureRequ
 export async function previewRepairOperation(id: string): Promise<RepairPreview> {
   const operation = findRepairOperation(id)
   if (operation === undefined) throw new Error(`unknown repair operation: ${id}`)
+  if (!platformMatches(operation.platform, process.platform)) throw new Error(`此修复操作不适用于当前系统: ${id}`)
   if (operation.kind === 'configure' && operation.request !== undefined) {
     return { operation, preview: await previewConfigure(operation.request) }
   }
@@ -135,6 +136,7 @@ export async function previewRepairOperation(id: string): Promise<RepairPreview>
 export async function applyRepairOperation(id: string): Promise<RepairApplyResult> {
   const operation = findRepairOperation(id)
   if (operation === undefined) throw new Error(`unknown repair operation: ${id}`)
+  if (!platformMatches(operation.platform, process.platform)) throw new Error(`此修复操作不适用于当前系统: ${id}`)
   if (operation.kind === 'configure' && operation.request !== undefined) {
     return { operation, result: await applyConfigure(operation.request) }
   }

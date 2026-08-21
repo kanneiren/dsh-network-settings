@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, DisclosureRow, IconGlobeOutline14, Modal, Tooltip, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Diagnosis, DiagnosisReport, NetworkInspection, NetworkPathGraph, RepairOperation, RepairOperationPreview } from './contract.ts'
-import type { NetworkService } from './service.ts'
+import type { NetworkService, OpenLocationKind } from './service.ts'
 import type { NetworkLocaleKey } from './locales.ts'
 import { AdvancedSection } from './AdvancedSection.tsx'
 import css from './NetworkTab.module.css'
@@ -34,9 +34,9 @@ function platformOf(inspection: NetworkInspection | undefined, graph: NetworkPat
 }
 
 function hostsPathFor(platform: string): string {
-  if (platform === 'darwin' || platform === 'macos') return '/etc/hosts'
-  if (platform === 'linux') return '/mnt/c/Windows/System32/drivers/etc/hosts'
-  return 'C:\Windows\System32\drivers\etc\hosts'
+  if (platform === 'macos') return '/etc/hosts'
+  if (platform === 'wsl') return '/mnt/c/Windows/System32/drivers/etc/hosts'
+  return 'C:\\Windows\\System32\\drivers\\etc\\hosts'
 }
 
 function runtimeDisplayLabel(graph: NetworkPathGraph | undefined): string {
@@ -87,8 +87,8 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
     setNotice(t('appliedScope', { scope: result.operation.scope }))
   }
 
-  const openLocation = async (kind: 'wslconfig' | 'wsl-conf' | 'hosts', distribution?: string): Promise<void> => {
-    const result = await service.openConfigLocation(kind, distribution)
+  const openLocation = async (kind: OpenLocationKind, target?: string): Promise<void> => {
+    const result = await service.openConfigLocation(kind, target)
     if (result === undefined || !result.opened) setFailure(t('openLocationFailed'))
   }
 
@@ -134,6 +134,9 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
                   <div className={css.detailMeta}>{t('currentValue')}：{mac.proxy.scutil.httpsHost ?? mac.proxy.scutil.httpHost}:{mac.proxy.scutil.httpsPort ?? mac.proxy.scutil.httpPort}</div>
                 ) : null}
                 {mac.proxy.scutil.pacEnabled && mac.proxy.scutil.pacUrl !== undefined ? <div className={css.detailMeta}>{t('macPacUrl')}：{mac.proxy.scutil.pacUrl}</div> : null}
+                <div className={css.actions}>
+                  <Button variant="outline" size="sm" onClick={() => { void openLocation('system-proxy-settings') }}>{t('macOpenNetworkSettings')}</Button>
+                </div>
               </div>
               <div className={css.configCard}>
                 <div className={css.detailName}>{t('macShellEnv')}</div>
@@ -148,6 +151,9 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
                     </div>
                   ))
                 })()}
+                <div className={css.actions}>
+                  <Button variant="outline" size="sm" onClick={() => { void openLocation('shell-profile') }}>{t('macOpenShellProfile')}</Button>
+                </div>
               </div>
               <div className={css.configCard}>
                 <div className={css.detailName}>{t('macDnsServers')}</div>
@@ -162,7 +168,9 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
                 <div className={css.detailMeta}>{t('statusLabel')}：{hasInspection ? (wininet.enabled ? t('currentEnabled') : t('currentDisabled')) : t('unknownLabel')}</div>
                 {wininet.enabled && wininet.proxyServer !== undefined ? <div className={css.detailMeta}>{t('currentValue')}：{wininet.proxyServer}</div> : null}
                 <div className={css.detailMeta}>{t('configSource')}：{hasInspection ? t('configSourceWinInet') : t('notTestedLabel')}</div>
-                <Button variant="outline" size="sm" onClick={() => { void service.openWindowsProxySettings() }}>{t('openWindowsProxySettings')}</Button>
+                <div className={css.actions}>
+                  <Button variant="outline" size="sm" onClick={() => { void openLocation('system-proxy-settings') }}>{t('openWindowsProxySettings')}</Button>
+                </div>
               </div>
 
               <div className={css.configCard}>
@@ -379,9 +387,7 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             {!hasInspection ? <div className={css.detailMeta}>{t('unknownLabel')}</div> : null}
             {hostsFor(data, graph).map(entry => <div key={entry.raw} className={css.detailMeta}>{entry.raw}</div>)}
             {(() => {
-              const hostsPath = data.runtime.platform === 'linux'
-                ? '/mnt/c/Windows/System32/drivers/etc/hosts'
-                : 'C:\\Windows\\System32\\drivers\\etc\\hosts'
+              const hostsPath = hostsPathFor(platformOf(data, graph))
               return (
                 <div className={css.actions}>
                   <Button variant="outline" size="sm" onClick={() => { void openLocation('hosts') }}>{t('openConfigLocation')}</Button>

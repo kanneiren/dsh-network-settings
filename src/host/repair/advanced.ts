@@ -4,6 +4,7 @@ import { runPowerShell, type PowerShellResult } from '../runtime/powershell.ts'
 import { runElevatedPowerShell } from '../configure/windows.ts'
 import { readWinHttpMachineProxy } from '../configure/windows.ts'
 import { saveSnapshot, updateSnapshotAfter } from '../snapshot/store.ts'
+import { findRepairOperationByAdvancedId, platformMatches } from './catalog.ts'
 
 export interface AdvancedAction {
   id: string
@@ -118,8 +119,18 @@ const CATALOG: readonly AdvancedAction[] = [
   },
 ]
 
-export function advancedCatalog(): AdvancedAction[] {
-  return CATALOG.map(action => ({ ...action }))
+/**
+ * Platform-appropriate first-aid list. Availability is derived from the
+ * repair catalog's platform tags (single source of truth), so the advanced
+ * list can never leak another runtime's operations.
+ */
+export function advancedCatalog(platform: NodeJS.Platform = process.platform): AdvancedAction[] {
+  return CATALOG
+    .filter(action => {
+      const operation = findRepairOperationByAdvancedId(action.id)
+      return operation === undefined || platformMatches(operation.platform, platform)
+    })
+    .map(action => ({ ...action }))
 }
 
 export async function runAdvancedAction(
@@ -128,6 +139,10 @@ export async function runAdvancedAction(
 ): Promise<AdvancedRunResult> {
   const action = CATALOG.find(candidate => candidate.id === id)
   if (action === undefined) throw new Error(`unknown advanced action: ${id}`)
+  const operation = findRepairOperationByAdvancedId(id)
+  if (operation !== undefined && !platformMatches(operation.platform, process.platform)) {
+    throw new Error(`此急救操作不适用于当前系统: ${id}`)
+  }
 
   let snapshotId: string | undefined
   if (action.id === 'reset-winhttp-proxy') {

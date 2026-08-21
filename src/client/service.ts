@@ -41,8 +41,7 @@ export interface NetworkService {
   previewWslProxySource(source: WslProxySource): Promise<WslProxyPreview | undefined>
   applyWslProxySource(source: WslProxySource): Promise<WslProxyApplyResult | undefined>
   hostsEntries(): Promise<HostsEntry[]>
-  openWindowsProxySettings(): Promise<OpenLocationResult | undefined>
-  openConfigLocation(kind: 'wslconfig' | 'wsl-conf' | 'hosts', distribution?: string): Promise<OpenLocationResult | undefined>
+  openConfigLocation(kind: OpenLocationKind, target?: string): Promise<OpenLocationResult | undefined>
   previewHostsDelete(entry: HostsEntry): Promise<HostsDeletePreview | undefined>
   applyHostsDelete(entry: HostsEntry): Promise<HostsDeleteResult | undefined>
 }
@@ -61,6 +60,8 @@ export interface OpenLocationResult {
   opened: boolean
   path: string
 }
+
+export type OpenLocationKind = 'hosts' | 'wslconfig' | 'wsl-conf' | 'system-proxy-settings' | 'shell-profile'
 
 export interface RollbackResult {
   snapshot: SnapshotRecord
@@ -208,12 +209,8 @@ export function createNetworkService(connection: ConnectionFace): NetworkService
       const result = await connection.rpc.call<{ entries: HostsEntry[] }>(CHANNEL, 'hosts/entries', {})
       return result.ok ? result.value.entries : []
     },
-    async openWindowsProxySettings() {
-      const result = await connection.rpc.call<OpenLocationResult>(CHANNEL, 'config/open-windows-proxy', {})
-      return result.ok ? result.value : undefined
-    },
-    async openConfigLocation(kind, distribution) {
-      const result = await connection.rpc.call<OpenLocationResult>(CHANNEL, 'config/open-location', { kind, ...distribution === undefined ? {} : { distribution } })
+    async openConfigLocation(kind: OpenLocationKind, target?: string) {
+      const result = await connection.rpc.call<OpenLocationResult>(CHANNEL, 'config/open-location', { kind, ...target === undefined ? {} : { target } })
       return result.ok ? result.value : undefined
     },
     async previewHostsDelete(entry) {

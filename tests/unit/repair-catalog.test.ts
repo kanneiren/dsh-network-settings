@@ -110,6 +110,8 @@ describe('macOS repair integration', () => {
     const macOps = operationsForPlatform('darwin')
     assert.equal(macOps.some(op => op.id === 'clear-wininet-user-proxy'), false, 'wininet op must not appear on darwin')
     assert.equal(macOps.some(op => op.id === 'reset-winsock'), false, 'winsock reset must not appear on darwin')
+    assert.equal(macOps.some(op => op.id === 'flush-dns'), false, 'ipconfig flush-dns must not appear on darwin')
+    assert.equal(macOps.some(op => op.id === 'clear-user-env-proxy'), false, 'Windows env op must not appear on darwin')
     assert.equal(macOps.some(op => op.id === 'mac-flush-dns'), true, 'mac flush-dns must appear on darwin')
     assert.equal(macOps.some(op => op.id === 'clear-dsh-process-proxy'), true, 'platform-neutral op must appear on darwin')
   })
@@ -118,7 +120,17 @@ describe('macOS repair integration', () => {
     const { operationsForPlatform } = await import('../../src/host/repair/catalog.ts')
     const winOps = operationsForPlatform('win32')
     assert.equal(winOps.some(op => op.id === 'clear-wininet-user-proxy'), true)
+    assert.equal(winOps.some(op => op.id === 'flush-dns'), true)
     assert.equal(winOps.some(op => op.id === 'mac-flush-dns'), false, 'mac op must not appear on win32')
+  })
+
+  it('WSL keeps Windows-host operations (interop) but never macOS ones', async () => {
+    const { operationsForPlatform } = await import('../../src/host/repair/catalog.ts')
+    const wslOps = operationsForPlatform('linux')
+    assert.equal(wslOps.some(op => op.id === 'clear-wininet-user-proxy'), true, 'Windows-host ops apply inside WSL via interop')
+    assert.equal(wslOps.some(op => op.id === 'flush-dns'), true)
+    assert.equal(wslOps.some(op => op.id === 'mac-flush-dns'), false, 'mac op must not appear on WSL')
+    assert.equal(wslOps.some(op => op.id === 'clear-dsh-process-proxy'), true)
   })
 
   it('MAC_SHELL_PROXY_RESIDUE maps to mac-clear-shell-proxy in recommendations', () => {

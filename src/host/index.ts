@@ -11,7 +11,7 @@ import { readJson, writeJson } from './runtime/store.ts'
 import { applyConfigure, previewConfigure, type ConfigureRequest } from './configure/index.ts'
 import { listSnapshots } from './snapshot/store.ts'
 import { actionToConfigureRequest, applyRepairOperation, previewRepairOperation, rollbackLatest, rollbackScope } from './repair/index.ts'
-import { diagnosisActionOperations, isRecommendableOperation, operationsForPlatform, RECOMMEND_CONFIDENCE_THRESHOLD, repairCatalog } from './repair/catalog.ts'
+import { diagnosisActionOperations, isRecommendableOperation, operationsForPlatform, platformMatches, RECOMMEND_CONFIDENCE_THRESHOLD, repairCatalog } from './repair/catalog.ts'
 import { advancedCatalog, recentAdvancedActionIds, runAdvancedAction } from './repair/advanced.ts'
 import { applyWslProxySource, previewWslProxySource } from './repair/wsl-proxy.ts'
 import { inspectWslProxySources, type WslProxySource } from './wsl/sources.ts'
@@ -20,7 +20,7 @@ import type { HostsEntry } from './shared-env.ts'
 import type { Diagnosis, DiagnosisAction } from './diagnose/model.ts'
 import type { SnapshotScope } from './snapshot/store.ts'
 import { applyDshProxyConfig, readDshConfig } from './configure/dsh.ts'
-import { openConfigLocation, openWindowsProxySettings } from './configure/open.ts'
+import { openConfigLocation, type OpenLocationKind } from './configure/open.ts'
 import { redact } from './redact.ts'
 import { collectModelServiceTargets } from './dsh/model-services.ts'
 import { buildNetworkReport, buildTargets, type NetworkPathSummary } from './network/index.ts'
@@ -170,6 +170,7 @@ export function apply(ctx: HostContext): void {
             if (source.confidence < RECOMMEND_CONFIDENCE_THRESHOLD) continue
             const operations = source.actions
               .flatMap(action => diagnosisActionOperations(action))
+              .filter(operation => platformMatches(operation.platform, process.platform))
               .filter(operation => isRecommendableOperation(operation.id))
               .filter(operation => {
                 if (seenOperations.has(operation.id)) return false
@@ -223,13 +224,12 @@ export function apply(ctx: HostContext): void {
           return ok(previewHostsDelete(asObject(payload)['entry'] as HostsEntry))
         case 'hosts/delete':
           return ok(await deleteHostsEntry(asObject(payload)['entry'] as HostsEntry))
-        case 'config/open-windows-proxy':
-          return ok(await openWindowsProxySettings())
         case 'config/open-location': {
           const body = asObject(payload)
           const kind = body['kind']
-          if (kind !== 'wslconfig' && kind !== 'wsl-conf' && kind !== 'hosts') throw new Error('unknown config location')
-          return ok(await openConfigLocation(kind, typeof body['distribution'] === 'string' ? body['distribution'] : undefined))
+          const KNOWN_KINDS: readonly OpenLocationKind[] = ['hosts', 'wslconfig', 'wsl-conf', 'system-proxy-settings', 'shell-profile']
+          if (typeof kind !== 'string' || !KNOWN_KINDS.includes(kind as OpenLocationKind)) throw new Error('unknown config location')
+          return ok(await openConfigLocation(kind as OpenLocationKind, typeof body['target'] === 'string' ? body['target'] : undefined))
         }
         case 'advanced/list':
           return ok({ actions: advancedCatalog() })

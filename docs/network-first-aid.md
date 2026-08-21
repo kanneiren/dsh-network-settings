@@ -13,6 +13,22 @@ diagnosis. It has two distinct roles:
 A diagnosis with no safe automatic action still shows the section, but the
 recommended area stays empty.
 
+## Platform availability
+
+Every operation carries a platform tag (single source of truth:
+`src/host/repair/catalog.ts`), and the list, the recommendations and the
+execution entry all derive from it — an operation of another runtime can
+neither be listed nor executed:
+
+- `windows` — targets the Windows host; offered on Windows native and
+  inside WSL (executed through interop)
+- `macos` — offered on macOS only
+- untagged — runtime-neutral (DSH process scope)
+
+macOS equivalents of the Windows classics: `mac-flush-dns` (dscacheutil +
+mDNSResponder), `mac-clear-shell-proxy` (startup-file export residue),
+`mac-clear-scutil-proxy` (scutil system proxy residue).
+
 ## Recommended operations
 
 These can appear automatically when a diagnostic action maps to them:

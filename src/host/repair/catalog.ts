@@ -1,5 +1,5 @@
 /** Atomic repair-operation catalog. Every operation targets one scope and is
- * independent: no operation includes another operation. * Module facade: Public surface: repairCatalog(), diagnosisActionOperations(), isRecommendableOperation(), RECOMMEND_CONFIDENCE_THRESHOLD, findRepairOperation().
+ * independent: no operation includes another operation. * Module facade: Public surface: repairCatalog(), operationsForPlatform(), platformMatches(), findRepairOperation(), findRepairOperationByAdvancedId(), diagnosisActionOperations(), isRecommendableOperation(), RECOMMEND_CONFIDENCE_THRESHOLD.
  */
 import type { ConfigureRequest } from '../configure/index.ts'
 import type { DiagnosisAction } from '../diagnose/model.ts'
@@ -39,6 +39,7 @@ const CONFIGURE_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'clear-user-env-proxy',
+    platform: 'windows',
     label: '清除 Windows 用户环境变量代理',
     description: '只清除当前 Windows 用户作用域的 8 个代理环境变量。',
     scope: 'windows.env.user',
@@ -119,6 +120,7 @@ const ADVANCED_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'flush-dns',
+    platform: 'windows',
     label: '刷新 DNS 解析缓存',
     description: '执行 ipconfig /flushdns，清除 Windows DNS 客户端缓存。',
     scope: 'windows.dns.cache',
@@ -239,10 +241,24 @@ export function isRecommendableOperation(id: string): boolean {
   return RECOMMENDABLE_OPERATION_IDS.has(id)
 }
 
-/** Filter operations by the runtime platform; undefined platform means universal. */
+/** Filter operations by the runtime platform. */
 export function operationsForPlatform(platform: NodeJS.Platform | undefined): RepairOperation[] {
-  const os = platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : undefined
-  return REPAIR_OPERATIONS.filter(op => op.platform === undefined || op.platform === os)
+  return REPAIR_OPERATIONS.filter(operation => platformMatches(operation.platform, platform))
+}
+
+/**
+ * Single source of truth for platform availability. A 'windows' operation
+ * targets the Windows host, so it is offered on Windows native and inside
+ * WSL (executed through interop); 'macos' only on darwin; undefined everywhere.
+ */
+export function platformMatches(tag: RepairOperation['platform'], platform: NodeJS.Platform | undefined): boolean {
+  if (tag === undefined) return true
+  if (tag === 'macos') return platform === 'darwin'
+  return platform !== 'darwin'
+}
+
+export function findRepairOperationByAdvancedId(advancedId: string): RepairOperation | undefined {
+  return REPAIR_OPERATIONS.find(operation => operation.advancedId === advancedId)
 }
 
 /** Map a Phase 2 diagnosis action to one or more independent repair operations. */
@@ -268,8 +284,10 @@ export function diagnosisActionOperations(action: DiagnosisAction): RepairOperat
       // conflicts are rare and clearing them triggers UAC, so they stay manual.
       return [findRepairOperation('clear-user-env-proxy')].filter((operation): operation is RepairOperation => operation !== undefined)
     case 'DNS_FAILURE':
-    case 'repair-dns':
-      return [findRepairOperation('flush-dns')].filter((operation): operation is RepairOperation => operation !== undefined)
+    case 'repair-dns': {
+      const flush = findRepairOperation(process.platform === 'darwin' ? 'mac-flush-dns' : 'flush-dns')
+      return flush === undefined ? [] : [flush]
+    }
     case 'TLS_FAILURE':
       return []
     case 'WSL_AUTOPROXY_STALE':
