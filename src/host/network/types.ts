@@ -9,6 +9,22 @@
  */
 import type { LayeredProbe } from '../model.ts'
 
+/**
+ * NetworkPathGraph boundary constraint:
+ *
+ * This graph represents the DSH process's outbound network path to a single
+ * target — nothing more. It is NOT a machine network topology map.
+ *
+ * In scope:  DSH process → [proxy] → adapter → gateway → internet → target,
+ *            with probe evidence and diagnostic annotations.
+ * Out of scope: firewall rules, routing tables, VPN inventory, network
+ *            assets, other processes' paths, historical paths.
+ *
+ * Adding any of the out-of-scope items here would turn this into a God
+ * Model. If a future feature needs broader topology, create a separate
+ * data structure and reference it — don't expand this one.
+ */
+
 export type RuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION' | 'MACOS_NATIVE' | 'UNSUPPORTED_RUNTIME'
 export type SupportedRuntimeModel = 'WINDOWS_NATIVE' | 'WSL_DISTRIBUTION' | 'MACOS_NATIVE'
 export type PathConfidence = 'verified' | 'inferred' | 'unknown'

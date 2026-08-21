@@ -2,7 +2,8 @@
 import type { LayeredProbe, WslDistribution } from '../model.ts'
 import {
   dnsBranchFromProbe, egressFactsOf, endpointFromConfig, endpointStatusFromProbe,
-  evidence, failureLayerLabel, gatewayEvidenceOf, gatewayEvidenceLabel,
+  evidence, failureLayerLabel, gatewayNode, internetNode, processNode, targetNode,
+  gatewayEvidenceOf, gatewayEvidenceLabel,
   interfaceLabel, pathStatusOfProbe, probeEvidence, probeEvidenceList,
   resolveEnvProxy, statusOfCheck, statusText, uplinkEdges, uplinkNodes,
   type EgressFacts,
@@ -76,7 +77,7 @@ function buildWslDirectPath(
   const hostAddress = hostAddressOf(distro)
 
   const nodes: PathNode[] = [
-    { id: 'dsh:process', type: 'PROCESS', role: 'main', label: 'DSH', subtitle: `DSH / ${runtime.registeredName ?? runtime.displayName}`, status: 'healthy' },
+    processNode(`DSH / ${runtime.registeredName ?? runtime.displayName}`),
     {
       id: 'dsh:distro', type: 'DISTRIBUTION', role: 'main', label: distro?.name ?? runtime.registeredName ?? runtime.displayName,
       subtitle: `${runtime.displayName}${linuxIp === undefined ? '' : ` · ${linuxIp}`}`,
@@ -108,14 +109,9 @@ function buildWslDirectPath(
       status: targetReached || gatewayReachable ? 'healthy' : 'unknown',
     },
     ...uplinkNodes(egress, targetReached || gatewayReachable ? 'healthy' : 'unknown'),
-    { id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway', ...gateway === undefined ? {} : { address: gateway }, status: gatewayReachable ? 'healthy' : 'unknown', subtitle: gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'subtitle') : '网关未响应探测 · 可能禁 ping' },
-    { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: targetReached ? 'healthy' : 'unknown' },
-    {
-      id: 'dsh:target', type: 'TARGET', role: 'main', label: target.display, subtitle: target.label,
-      ...target.port === undefined ? {} : { port: target.port },
-      status: targetFailed ? 'error' : targetReached ? 'healthy' : 'unknown',
-      details: probeDetails(probe, target.display),
-    },
+    gatewayNode(gateway, gatewayReachable ? 'healthy' : 'unknown', gateway === undefined ? '未识别默认网关' : gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'subtitle') : '网关未响应探测 · 可能禁 ping'),
+    internetNode(targetReached ? 'healthy' : 'unknown'),
+targetNode(target, targetFailed ? 'error' : targetReached ? 'healthy' : 'unknown'),
   ]
 
   const edges: PathEdge[] = [
@@ -173,7 +169,7 @@ function buildWslProxyPath(
   const hostAddress = hostAddressOf(distro)
 
   const nodes: PathNode[] = [
-    { id: 'dsh:process', type: 'PROCESS', role: 'main', label: 'DSH', subtitle: `DSH / ${runtime.registeredName ?? runtime.displayName}`, status: 'healthy' },
+    processNode(`DSH / ${runtime.registeredName ?? runtime.displayName}`),
     {
       id: 'dsh:distro', type: 'DISTRIBUTION', role: 'main', label: distro?.name ?? runtime.registeredName ?? runtime.displayName,
       subtitle: `${runtime.displayName}${linuxIp === undefined ? '' : ` · ${linuxIp}`}`,
@@ -209,7 +205,7 @@ function buildWslProxyPath(
     },
     ...uplinkNodes(egress, endpointFailed ? 'not-applicable' : http === 'healthy' || gatewayReachable ? 'healthy' : 'unknown'),
     { id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway', ...gateway === undefined ? {} : { address: gateway }, status: endpointFailed ? 'not-applicable' : gatewayReachable ? 'healthy' : 'unknown', subtitle: gatewayReachable ? gatewayEvidenceLabel(windowsOf(inspection).network, gatewayMeasured, 'subtitle') : '网关未响应探测 · 可能禁 ping' },
-    { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown' },
+    internetNode(endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown'),
     {
       id: 'dsh:target', type: 'TARGET', role: 'main', label: target.display, subtitle: target.label,
       ...target.port === undefined ? {} : { port: target.port },

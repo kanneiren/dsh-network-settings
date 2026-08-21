@@ -3,7 +3,8 @@
 import type { LayeredProbe, MacInspection } from '../model.ts'
 import {
   dnsBranchFromProbe, endpointFromConfig, endpointStatusFromProbe, evidence,
-  failureLayerLabel, pathStatusOfProbe, probeEvidence, resolveEnvProxy,
+  failureLayerLabel, gatewayNode, internetNode, processNode, targetEdge, targetNode,
+  pathStatusOfProbe, probeEvidence, resolveEnvProxy,
   statusOfCheck,
 } from './shared.ts'
 import type { GraphSurvey } from './survey.ts'
@@ -46,7 +47,7 @@ function buildDirectPath(survey: GraphSurvey): BuiltDshPath {
   const interfaceStatus: PathStatus = targetReached || tcp === 'healthy' ? 'healthy' : 'unknown'
 
   const nodes: PathNode[] = [
-    { id: 'dsh:process', type: 'PROCESS', role: 'main', label: 'DSH', subtitle: 'DeepSeek Harness', status: 'healthy' },
+    processNode('DeepSeek Harness'),
     { id: 'dsh:host', type: 'HOST', role: 'main', label: 'macOS', subtitle: osLabel(inspection.macos), status: 'healthy' },
     {
       id: 'dsh:adapter', type: 'INTERFACE', role: 'main',
@@ -54,23 +55,10 @@ function buildDirectPath(survey: GraphSurvey): BuiltDshPath {
       subtitle: adapter === undefined ? '未识别活动接口' : `${adapter.device} · ${adapter.kind}`,
       status: interfaceStatus,
     },
-    {
-      id: 'dsh:gateway', type: 'GATEWAY', role: 'main', label: 'Gateway',
-      ...inspection.macos?.network.gateway === undefined ? {} : { address: inspection.macos?.network.gateway },
-      status: gatewayReachable ? 'healthy' : 'unknown',
-      subtitle: gatewayReachable ? '端到端探测通过默认网关' : '网关未知 · 以端到端探测为准',
-    },
-    { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: targetReached ? 'healthy' : 'unknown' },
-    {
-      id: 'dsh:target', type: 'TARGET', role: 'main', label: target.display, subtitle: target.label,
-      ...target.port === undefined ? {} : { port: target.port },
-      status: targetFailed ? 'error' : targetReached ? 'healthy' : 'unknown',
-      details: [
-        { label: 'TCP status', value: statusTextOf(tcp) },
-        { label: 'TLS status', value: statusTextOf(statusOfCheck(probe?.layers.tls)) },
-        { label: 'HTTP status', value: statusTextOf(http) },
-      ],
-    },
+gatewayNode(inspection.macos?.network.gateway, gatewayReachable ? 'healthy' : 'unknown',
+      gatewayReachable ? '端到端探测通过默认网关' : '网关未知 · 以端到端探测为准'),
+    internetNode(targetReached ? 'healthy' : 'unknown'),
+targetNode(target, targetFailed ? 'error' : targetReached ? 'healthy' : 'unknown'),
   ]
 
   return {
@@ -112,7 +100,7 @@ function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration): BuiltD
   const targetStatus: PathStatus = endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : http === 'error' || tls === 'error' ? 'error' : 'unknown'
 
   const nodes: PathNode[] = [
-    { id: 'dsh:process', type: 'PROCESS', role: 'main', label: 'DSH', subtitle: 'DeepSeek Harness', status: 'healthy' },
+    processNode('DeepSeek Harness'),
     { id: 'dsh:host', type: 'HOST', role: 'main', label: 'macOS', subtitle: osLabel(inspection.macos), status: 'healthy' },
     {
       id: 'dsh:proxy', type: 'PROXY', role: 'main', label: `Proxy :${config.port ?? '?'}`,
@@ -129,12 +117,8 @@ function buildProxyPath(survey: GraphSurvey, config: ProxyConfiguration): BuiltD
       subtitle: adapter === undefined ? '未识别活动接口' : `${adapter.device} · ${adapter.kind}`,
       status: endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown',
     },
-    { id: 'dsh:internet', type: 'INTERNET', role: 'main', label: 'Internet', status: endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown' },
-    {
-      id: 'dsh:target', type: 'TARGET', role: 'main', label: target.display, subtitle: target.label,
-      ...target.port === undefined ? {} : { port: target.port },
-      status: targetStatus,
-    },
+    internetNode(endpointFailed ? 'not-applicable' : http === 'healthy' ? 'healthy' : 'unknown'),
+targetNode(target, targetStatus),
   ]
 
   return {
