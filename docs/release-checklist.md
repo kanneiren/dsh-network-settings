@@ -39,6 +39,11 @@ npm (package):
 npm publish
 ```
 
+- [ ] `npm publish` packs the current working tree, not the git tag —
+      publish from a clean worktree of the tagged commit
+      (`git worktree add ../publish-v<version> v<version>`, then
+      `npm ci && npm publish` there) so uncommitted local changes never
+      leak into the tarball.
 - [ ] Configure the npm token for GitHub Actions (`NPM_TOKEN`) if using CI.
 
 ## After publishing

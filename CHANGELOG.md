@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.2
+
+### npm registry distribution
+
+- Published to the npm registry. `dsh plugin add dsh-network-settings`
+  now installs prebuilt code directly — no `allowBuilds` prompt, no
+  on-install build.
+- README (en/zh) documents the GitHub fallback install and its one-time
+  per-commit `allowBuilds` approval step.
+- Probe `User-Agent` bumped to `dsh-network-settings/0.3.2`.
+
 ## v0.3.1
 
 ### New check targets

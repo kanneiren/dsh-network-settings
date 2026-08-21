@@ -68,11 +68,40 @@ DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL / macOS 网络链�
 
 ## 安装
 
+从 npm 仓库安装（推荐，自带预构建产物，无需额外配置）：
+
 ```powershell
 dsh plugin --profile web add dsh-network-settings
 ```
 
+再次执行同一条命令即可更新到最新版。
+
 打开 **设置 → 插件 → 网络**。
+
+<details>
+<summary>直接从 GitHub 安装（备选）</summary>
+
+```powershell
+dsh plugin --profile web add github:kanneiren/dsh-network-settings
+```
+
+从 GitHub 安装时需要在安装现场构建（`prepare` 脚本），而 pnpm 默认会
+拦截 git 来源包的构建脚本，需要先放行。如果安装报
+`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`，把报错信息中打印的完整
+`allowBuilds` 键复制进
+`%UserProfile%\.dsh\profiles\<profile>\pnpm-workspace.yaml`，再重新执行
+安装命令。键的格式如下：
+
+```yaml
+allowBuilds:
+  dsh-network-settings@https://codeload.github.com/kanneiren/dsh-network-settings/tar.gz/<commit>: true
+```
+
+键中固定了解析出的 commit 哈希，所以每个新版本都要重新放行一次
+（pnpm 不支持对 git 来源的包使用通配符）。上面的 npm 仓库安装没有
+这一步。
+
+</details>
 
 ## 使用
 

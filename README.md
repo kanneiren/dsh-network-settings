@@ -98,11 +98,40 @@ rollback.
 
 ## Install
 
+From the npm registry (recommended — prebuilt, no extra configuration):
+
 ```powershell
 dsh plugin --profile web add dsh-network-settings
 ```
 
+Re-running the same command updates the plugin to the latest version.
+
 Open **Settings → Plugins → Network**.
+
+<details>
+<summary>Install directly from GitHub (alternative)</summary>
+
+```powershell
+dsh plugin --profile web add github:kanneiren/dsh-network-settings
+```
+
+GitHub installs build the plugin on install (`prepare` script), and pnpm
+blocks build scripts of git-hosted packages until you approve them. If the
+install fails with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`, copy the exact
+`allowBuilds` key printed in that error message into
+`%UserProfile%\.dsh\profiles\<profile>\pnpm-workspace.yaml` and re-run the
+install command. The key looks like:
+
+```yaml
+allowBuilds:
+  dsh-network-settings@https://codeload.github.com/kanneiren/dsh-network-settings/tar.gz/<commit>: true
+```
+
+The key pins the resolved commit hash, so every new version asks for
+approval once more (pnpm does not accept wildcards for git-hosted
+packages). The npm registry install above has no such step.
+
+</details>
 
 ---
 
