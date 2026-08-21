@@ -1,5 +1,5 @@
 /** Snapshot persistence for network configuration changes. */
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { networkDataDir } from '../runtime/store.ts'
 import { redact } from '../redact.ts'
@@ -48,7 +48,26 @@ export async function saveSnapshot(record: Omit<SnapshotRecord, 'id' | 'timestam
   const temp = `${path}.tmp`
   await writeFile(temp, JSON.stringify(full, null, 2), 'utf8')
   await rename(temp, path)
+  await pruneSnapshots(MAX_SNAPSHOTS)
   return full
+}
+
+/** Snapshots are rollback insurance, not an audit log — old entries that
+ *  have already been superseded (the user rolled back or accepted the
+ *  change) are pruned to keep the directory bounded. */
+const MAX_SNAPSHOTS = 50
+
+async function pruneSnapshots(keep: number): Promise<void> {
+  try {
+    const records = await listSnapshots()
+    if (records.length <= keep) return
+    const excess = records.slice().reverse().slice(keep) // oldest first
+    for (const record of excess) {
+      await unlink(join(snapshotsDir(), `${record.id}.json`)).catch(() => {})
+    }
+  } catch {
+    // Pruning is best-effort; failure to clean old snapshots is not fatal.
+  }
 }
 
 export async function listSnapshots(): Promise<SnapshotRecord[]> {

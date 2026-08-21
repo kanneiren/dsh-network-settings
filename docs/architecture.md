@@ -2,6 +2,31 @@
 
 ## Architecture diagrams
 
+### 0. File storage layer — what the plugin writes and how long it keeps it
+
+```mermaid
+flowchart TB
+  subgraph DATA_DIR["~/.dsh/dsh-network-settings/"]
+    LR["last-report.json<br/>~25KB · overwritten on every check<br/>redacted before write"]
+    AH["action-history.json<br/>last 50 entries · append-only<br/>used for 'recently applied' badges"]
+    DSH_CFG["dsh-config.json<br/>DSH process proxy persistence"]
+    SNAP["snapshots/<br/>one JSON per repair<br/>pruned to 50 (oldest removed)<br/>redacted, atomic write"]
+  end
+  BAK["system file backups<br/>hosts → .dsh-network-settings.bak<br/>shell profiles → .bak (sed)"]
+
+  CHECK["run check"] -->|"overwrite"| LR
+  REPAIR["apply repair"] -->|"create"| SNAP
+  SNAP -->|"prune >50"| SNAP
+  REPAIR --> BAK
+  ADVANCED["advanced action"] -->|"append, trim to 50"| AH
+  DSH_PROXY["dsh.process configure"] --> DSH_CFG
+```
+
+Retention policy: `last-report.json` is single-slot (always the latest);
+action history is capped at 50; snapshots are pruned to 50 after each save;
+system file backups (`.bak`) sit next to the original file and are left for
+the user to clean.
+
 ### 1. System layers — two halves, one RPC channel
 
 ```mermaid
@@ -117,6 +142,21 @@ recorded fixtures; L1/L2 wrap every platform command behind one facade
 function; L4 is the only place that mutates the system and always goes
 through snapshots.
 
+**Deep Module annotations** — modules with narrow interfaces hiding
+significant complexity (Ousterhout):
+
+| Module | Interface | Hidden complexity |
+|---|---|---|
+| `runtime/command.ts` | `runCommand(file, args, opts)` | timeout, abort, SIGKILL escalation, output caps, encoding |
+| `windows/inspect.ts` | `inspectWindowsFacts()` | one PowerShell script, UTF-8 contract, netsh parsing |
+| `probe/probe.ts` | `probeTarget(target, path, opts)` | 4-layer progression, CONNECT tunnels, proxy DNS bypass, sampling |
+| `mac/inspect.ts` | `inspectMacFacts()` | scutil, networksetup, route, lsof, sw_vers, shell-profile scan |
+| `inspect.ts` | `inspectNetwork()` | hard deadline, model-driven collection, endpoint merge, listener annotation |
+
+Modules that are intentionally **not deep** (thin data transformers):
+`network/shared.ts` (vocabulary, not logic), `redact.ts` (pure function),
+`snapshot/diff.ts` (JSON diff).
+
 ### 4. Runtime model selection
 
 ```mermaid
@@ -169,18 +209,17 @@ flowchart LR
 ## Overview
 
 ```text
-DSH Settings (React)
-        │ typed RPC (/dsh-network-settings)
+DSH Settings (React)  ←── platform-free, no system commands
+        │ typed RPC (/dsh-network-settings, authority: loopback)
         ▼
 Host half (DSH Node process)
         │
-        ├─ Runtime detection: WINDOWS_NATIVE / WSL_DISTRIBUTION / UNSUPPORTED
-        ├─ Windows/WSL static inspection
-        ├─ Layered probes: DNS → TCP → TLS → HTTP
-        ├─ NetworkPathGraph builder (DSH-only path)
-        ├─ Configuration Drift rules
-        ├─ Legacy deterministic diagnosis rules
-        └─ Scoped repair / snapshot / rollback
+        ├─ Runtime detection: WINDOWS_NATIVE / WSL_DISTRIBUTION / MACOS_NATIVE
+        ├─ Platform collectors (L1): windows/wsl/mac — one facade each
+        ├─ Layered probes (L2): DNS → TCP → TLS → HTTP, hard timeouts
+        ├─ Pure core (L3): graph builders + diagnosis rules + repair catalog
+        ├─ Effects (L4): configure + repair + snapshot — the only mutation layer
+        └─ File storage: last-report (single-slot) + snapshots (pruned to 50)
 ```
 
 The client never executes platform commands. Every system action goes through
@@ -197,6 +236,7 @@ the host RPC channel with `authority: loopback`.
 | `survey.ts` | Read-only survey consumed by builders |
 | `build-windows.ts` | `WINDOWS_NATIVE` DSH path builder |
 | `build-wsl.ts` | `WSL_DISTRIBUTION` DSH path builder |
+| `build-mac.ts` | `MACOS_NATIVE` DSH path builder (direct + proxy) |
 | `drift.ts` | Configuration Drift diagnostics + repair hints |
 | `index.ts` | Orchestration: target list, graph building, summaries |
 
@@ -299,12 +339,18 @@ Healthy configuration differences are reported as `info`.
 
 ## Repair recommendation policy
 
-A repair button is marked "recommended" only when both hold:
+A repair button is marked "recommended" only when all three hold:
 
 - the driving diagnosis has confidence ≥ 0.85 (`RECOMMEND_CONFIDENCE_THRESHOLD`),
-- the mapped operation is in the common-operation whitelist
-  (`flush-dns`, `clear-user-env-proxy`, `clear-wininet-user-proxy`,
-  `clear-winhttp-user-proxy`, `clear-dsh-process-proxy`).
+- the mapped operation is in the common-operation whitelist,
+- the operation's platform tag matches the current runtime
+  (`operationsForPlatform(process.platform)` filters the catalog and
+  recommendations — Windows-only ops are invisible on macOS and vice versa).
+
+The whitelist includes platform-neutral ops (`clear-dsh-process-proxy`,
+`flush-dns`/`mac-flush-dns`) and platform-specific ops that are only
+recommended on their own platform (`clear-user-env-proxy` on Windows,
+`mac-clear-shell-proxy`/`mac-clear-scutil-proxy` on macOS).
 
 Admin/UAC, reboot-requiring and non-recoverable operations (machine env,
 WinHTTP machine reset, Winsock/TCP-IP resets, `wsl-autoproxy-enable`) never
@@ -321,3 +367,14 @@ read current value → snapshot → diff preview → user confirmation
 ```
 
 A successful command is never treated as a successful network repair.
+
+### File retention
+
+| File | Strategy | Cap |
+|---|---|---|
+| `last-report.json` | Overwritten on every check | 1 file (~25KB) |
+| `action-history.json` | Append, trim oldest | 50 entries |
+| `snapshots/*.json` | One per repair, pruned after each save | 50 files |
+| System `.bak` files | Left next to the original | User-managed |
+
+All files are redacted before write; snapshots use atomic write (tmp + rename).
