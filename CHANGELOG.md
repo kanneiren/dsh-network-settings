@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.3.3
+
+### Platform-correct repair operations
+
+- Windows no longer lists macOS first-aid actions (flush macOS DNS,
+  clear scutil proxy, clear shell-profile proxy) and macOS no longer
+  lists Windows ones (netsh resets, WinINet/WinHTTP operations).
+- Platform availability is derived from a single source (repair catalog
+  tags); the first-aid list, the repair catalog, recommendations and
+  the execution entry all reject cross-platform operations.
+- `DNS_FAILURE` now recommends `mac-flush-dns` on macOS instead of the
+  Windows-only `ipconfig /flushdns`.
+- `windows`-tagged operations target the Windows host and remain
+  available inside WSL through interop.
+
+### macOS configuration interactions
+
+- System proxy card gains "Open Network settings"
+  (`x-apple.systempreferences`); shell profile card gains "Open shell
+  profile" (first existing of .zshenv/.zprofile/.zshrc/…, validated
+  against a home-directory allowlist).
+- The hosts card now resolves `/etc/hosts` on macOS — it previously
+  showed Windows paths and the open button always failed.
+- The separate open-Windows-proxy-settings RPC was folded into
+  `openConfigLocation(kind)` with platform awareness.
+
 ## v0.3.2
 
 ### npm registry distribution

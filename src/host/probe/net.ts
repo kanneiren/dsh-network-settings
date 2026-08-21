@@ -210,7 +210,7 @@ export async function probeHttp(url: string, options: ProbeTimerOptions & { meth
       method: options.method ?? 'HEAD',
       redirect: 'follow',
       signal,
-      headers: { 'user-agent': 'dsh-network-settings/0.3.2' },
+      headers: { 'user-agent': 'dsh-network-settings/0.3.3' },
     })
     const latencyMs = Math.round(performance.now() - started)
     await response.arrayBuffer().catch(() => {})
@@ -299,7 +299,7 @@ export function probeHttpsThroughSocket(
     timer.unref?.()
     secure.once('secureConnect', () => {
       const path = `${url.pathname}${url.search}`
-      secure.write(`HEAD ${path} HTTP/1.1\r\nHost: ${url.host}\r\nUser-Agent: dsh-network-settings/0.3.2\r\nConnection: close\r\n\r\n`)
+      secure.write(`HEAD ${path} HTTP/1.1\r\nHost: ${url.host}\r\nUser-Agent: dsh-network-settings/0.3.3\r\nConnection: close\r\n\r\n`)
       let buffer = ''
       secure.on('data', (chunk) => {
         buffer += chunk.toString('latin1')
@@ -338,7 +338,7 @@ export function probeHttpThroughProxy(
       port: proxyPort,
       path: targetUrl.toString(),
       method: 'HEAD',
-      headers: { host: targetUrl.host, 'user-agent': 'dsh-network-settings/0.3.2' },
+      headers: { host: targetUrl.host, 'user-agent': 'dsh-network-settings/0.3.3' },
       timeout: timeoutMs,
       signal: options.signal,
     }, (response) => {
