@@ -41,7 +41,7 @@ export interface ProbeTarget {
   port?: number
   /** Optional absolute URL for HTTP probes. */
   url?: string
-  kind: 'internet' | 'deepseek' | 'openai' | 'github' | 'npm' | 'model-service' | 'windows-host' | 'wsl-proxy' | 'gateway'
+  kind: 'internet' | 'deepseek' | 'openai' | 'github' | 'npm' | 'pypi' | 'huggingface' | 'model-service' | 'windows-host' | 'wsl-proxy' | 'gateway'
 }
 
 export type ProxySource =

@@ -295,7 +295,7 @@ export interface NetworkTarget {
   host: string
   port?: number
   url?: string
-  kind: 'model-service' | 'deepseek' | 'openai' | 'github' | 'npm-registry' | 'custom'
+  kind: 'model-service' | 'deepseek' | 'openai' | 'github' | 'npm-registry' | 'pypi' | 'huggingface' | 'custom'
   display: string
 }
 
