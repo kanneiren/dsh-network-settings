@@ -2,17 +2,14 @@
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { runElevatedPowerShell } from '../configure/windows.ts'
+import { parseHostsEntries, type HostsEntry } from '../shared-env.ts'
 import { saveSnapshot, updateSnapshotAfter, type SnapshotScope } from '../snapshot/store.ts'
 
-export interface HostsEntry {
-  id: string
-  ip: string
-  hostnames: string[]
-  line: number
-  raw: string
-}
+export { parseHostsEntries }
+
 
 export function hostsPath(): string {
+  if (process.platform === 'darwin') return '/etc/hosts'
   if (process.platform === 'linux') return '/mnt/c/Windows/System32/drivers/etc/hosts'
   const root = process.env['SystemRoot'] ?? 'C:\\Windows'
   return join(root, 'System32', 'drivers', 'etc', 'hosts')
@@ -29,24 +26,6 @@ export function windowsHostsPath(path = hostsPath()): string {
   return `${(mount[1] ?? 'c').toUpperCase()}:\\${(mount[2] ?? '').replaceAll('/', '\\')}`
 }
 
-export function parseHostsEntries(text: string): HostsEntry[] {
-  return text
-    .replaceAll('\r\n', '\n')
-    .split('\n')
-    .flatMap((raw, index) => {
-      const trimmed = raw.trim()
-      if (trimmed === '' || trimmed.startsWith('#')) return []
-      const tokens = trimmed.split(/\s+/)
-      if (tokens.length < 2 || tokens[0] === undefined) return []
-      return [{
-        id: `hosts:${index + 1}`,
-        ip: tokens[0],
-        hostnames: tokens.slice(1),
-        line: index + 1,
-        raw,
-      }]
-    })
-}
 
 export async function readHostsEntries(path = hostsPath()): Promise<HostsEntry[]> {
   try {
@@ -148,3 +127,4 @@ export async function rollbackHostsSnapshot(snapshot: {
   if (!restored) throw new Error('恢复 Hosts 失败')
   return { diffText: [`Hosts 第 ${before.line ?? '?'} 行已从备份恢复`] }
 }
+

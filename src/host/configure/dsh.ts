@@ -1,7 +1,7 @@
 /** DSH-scoped configuration: current-process proxy env + durable local file. */
 import type { EnvironmentScopeSnapshot } from '../model.ts'
 import { readJson, writeJson } from '../runtime/store.ts'
-import { proxyEnvironmentOf } from '../windows/inspect.ts'
+import { proxyEnvironmentOf } from '../shared-env.ts'
 
 const DSH_CONFIG_FILE = 'dsh-config.json'
 

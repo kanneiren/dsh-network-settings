@@ -11,6 +11,7 @@ import type {
 } from '../model.ts'
 import { extractJson, runCommand } from '../runtime/command.ts'
 import { runPowerShell } from '../runtime/powershell.ts'
+import { proxyEnvironmentOf } from '../shared-env.ts'
 
 interface RawAdapter {
   Name?: string
@@ -303,22 +304,6 @@ function parseHosts(lines: string[]): HostsInspection {
   return { overrides }
 }
 
-export function proxyEnvironmentOf(source: Record<string, unknown>): EnvironmentScopeSnapshot {
-  const pick = (upper: string, lower: string): string | undefined => {
-    const value = source[upper] ?? source[lower]
-    return typeof value === 'string' ? value : undefined
-  }
-  return {
-    ...pick('HTTP_PROXY', 'http_proxy') === undefined ? {} : { HTTP_PROXY: pick('HTTP_PROXY', 'http_proxy') },
-    ...pick('HTTPS_PROXY', 'https_proxy') === undefined ? {} : { HTTPS_PROXY: pick('HTTPS_PROXY', 'https_proxy') },
-    ...pick('ALL_PROXY', 'all_proxy') === undefined ? {} : { ALL_PROXY: pick('ALL_PROXY', 'all_proxy') },
-    ...pick('NO_PROXY', 'no_proxy') === undefined ? {} : { NO_PROXY: pick('NO_PROXY', 'no_proxy') },
-    ...pick('http_proxy', 'HTTP_PROXY') === undefined ? {} : { http_proxy: pick('http_proxy', 'HTTP_PROXY') },
-    ...pick('https_proxy', 'HTTPS_PROXY') === undefined ? {} : { https_proxy: pick('https_proxy', 'HTTPS_PROXY') },
-    ...pick('all_proxy', 'ALL_PROXY') === undefined ? {} : { all_proxy: pick('all_proxy', 'ALL_PROXY') },
-    ...pick('no_proxy', 'NO_PROXY') === undefined ? {} : { no_proxy: pick('no_proxy', 'NO_PROXY') },
-  }
-}
 
 
 function parseListeners(raw: NonNullable<RawWindowsFacts['listeners']>): ListenerInspection[] {
@@ -344,3 +329,5 @@ function probeError(id: string, error: unknown): ProbeCheck {
     timestamp: new Date().toISOString(),
   }
 }
+
+export { proxyEnvironmentOf }

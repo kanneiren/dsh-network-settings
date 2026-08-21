@@ -58,11 +58,14 @@ interface RowGroup {
 function rowGroupsFrom(inspection: NetworkInspection | undefined, diagnosis: DiagnosisReport | undefined, t: T): RowGroup[] {
   const environment: StatusRow[] = []
   const windows = summarizeDiagnosis(diagnosis, 'windows')
+  const isMac = inspection?.macos !== undefined
   environment.push({
-    key: 'windows',
-    label: t('windows'),
+    key: isMac ? 'macos' : 'windows',
+    label: isMac ? 'macOS' : t('windows'),
     status: inspection === undefined ? (diagnosis === undefined ? 'not-tested' : windows.status) : windows.status === 'healthy' ? 'healthy' : windows.status,
-    detail: inspection === undefined ? undefined : t('interfaceCount', { count: inspection.windows?.network.interfaces.length ?? 0 }),
+    detail: inspection === undefined ? undefined : isMac
+      ? (inspection.macos?.os.version ?? '')
+      : t('interfaceCount', { count: inspection.windows?.network.interfaces.length ?? 0 }),
   })
 
   const wsl = inspection?.wsl
@@ -227,6 +230,30 @@ function DistributionDetails({ distro, t }: { distro: WslDistribution; t: T }): 
         {distro.osMetadata?.prettyName ?? `WSL ${String(distro.wslVersion ?? '?')}`}
         {env?.HTTPS_PROXY === undefined ? '' : ` · HTTPS_PROXY=${env.HTTPS_PROXY}`}
       </span>
+    </div>
+  )
+}
+
+function MacDetails({ inspection, t }: { inspection: NetworkInspection; t: T }): ReactNode {
+  const mac = inspection.macos
+  if (mac === undefined) return null
+  return (
+    <div className={css.detailList}>
+      <div className={css.detailRow}><span className={css.detailName}>macOS</span><span className={css.detailMeta}>{mac.os.caption} {mac.os.version} build {mac.os.build}</span></div>
+      {mac.network.interfaces.map(item => (
+        <div key={item.device} className={css.detailRow}>
+          <span className={css.detailName}>{item.name} <span className={css.detailTag}>{item.kind}</span></span>
+          <span className={css.detailMeta}>{item.device}{mac.network.gatewayInterface === item.device ? ' · default route' : ''}</span>
+        </div>
+      ))}
+      {mac.network.gateway !== undefined ? <div className={css.detailRow}><span className={css.detailName}>Gateway</span><span className={css.detailMeta}>{mac.network.gateway}</span></div> : null}
+      <div className={css.detailRow}><span className={css.detailName}>scutil proxy</span><span className={css.detailMeta}>{mac.proxy.scutil.httpEnabled || mac.proxy.scutil.httpsEnabled ? `${mac.proxy.scutil.httpsHost ?? mac.proxy.scutil.httpHost}:${mac.proxy.scutil.httpsPort ?? mac.proxy.scutil.httpPort}` : 'off'}</span></div>
+      {mac.dns.nameservers.length > 0 ? <div className={css.detailRow}><span className={css.detailName}>DNS</span><span className={css.detailMeta}>{mac.dns.nameservers.join(', ')}</span></div> : null}
+      {(() => {
+        const entries = Object.entries(mac.environment ?? {}).filter(([, v]) => v)
+        if (entries.length === 0) return null
+        return <div className={css.detailRow}><span className={css.detailName}>Shell env</span><span className={css.detailMeta}>{entries.map(([k, v]) => `${k}=${v}`).join(', ')}</span></div>
+      })()}
     </div>
   )
 }

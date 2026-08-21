@@ -317,8 +317,9 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configDns')}</div>
             <div className={css.detailMeta}>{hasInspection ? dnsSummary(data, t) : t('unknownLabel')}</div>
-            <Button variant="outline" size="sm" onClick={() => { void prepareOperation('flush-dns') }}>{t('clearDnsCache')}</Button>
+            <Button variant="outline" size="sm" onClick={() => { void prepareOperation(isMac ? 'mac-flush-dns' : 'flush-dns') }}>{t('clearDnsCache')}</Button>
           </div>
+          {isMac ? null : (
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configWinHttp')}</div>
             {!hasInspection ? <div className={css.detailMeta}>{t('unknownLabel')}</div> : null}
@@ -331,12 +332,22 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
             {staleWinHttpUser ? <Button variant="outline" size="sm" onClick={() => { void prepareOperation('clear-winhttp-user-proxy') }}>{t('restoreDirect')}</Button> : null}
             {staleWinHttpMachine ? <Button variant="outline" size="sm" onClick={() => { void prepareOperation('reset-winhttp-machine-proxy') }}>{t('restoreDirect')}</Button> : null}
           </div>
+          )}
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configInterfacesRoutes')}</div>
             {!hasInspection ? <div className={css.detailMeta}>{t('unknownLabel')}</div> : null}
-            {activeInterfaces(data).map(item => (
-              <div key={`${item.name}:${item.description}`} className={css.detailMeta}>{item.name} · {item.kind} · {item.ipv4.join(', ') || 'IPv4 -'} · gateway {item.gateways.join(', ') || '-'}</div>
-            ))}
+            {isMac && mac ? (
+              <>
+                {mac.network.interfaces.map(item => (
+                  <div key={item.device} className={css.detailMeta}>{item.name} · {item.device} · {item.kind}</div>
+                ))}
+                {mac.network.gateway !== undefined ? <div className={css.detailMeta}>gateway: {mac.network.gateway} ({mac.network.gatewayInterface ?? '?'})</div> : null}
+              </>
+            ) : (
+              activeInterfaces(data).map(item => (
+                <div key={`${item.name}:${item.description}`} className={css.detailMeta}>{item.name} · {item.kind} · {item.ipv4.join(', ') || 'IPv4 -'} · gateway {item.gateways.join(', ') || '-'}</div>
+              ))
+            )}
           </div>
           <div className={css.configCard}>
             <div className={css.detailName}>{t('configHosts')}</div>

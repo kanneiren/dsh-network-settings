@@ -4,7 +4,7 @@ import type { EnvironmentScopeSnapshot, LayeredProbe, ListenerInspection, ModelS
 import { inspectWindowsFacts } from './windows/inspect.ts'
 import { inspectWsl } from './wsl/inspect.ts'
 import { endpointsFromInspection } from './proxy/inspect.ts'
-import { proxyEnvironmentOf } from './windows/inspect.ts'
+import { proxyEnvironmentOf } from './shared-env.ts'
 import { probeTarget } from './probe/probe.ts'
 import { probeWslDirectInternet, probeWslDns, probeWslProxyInternet, probeWslTcp } from './probe/wsl.ts'
 import { inspectMacFacts } from './mac/inspect.ts'

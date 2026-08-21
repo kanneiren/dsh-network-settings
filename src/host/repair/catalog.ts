@@ -16,6 +16,8 @@ export interface RepairOperation {
   requiresReboot: boolean
   recoverable: boolean
   kind: RepairOperationKind
+  /** Runtime platform this operation applies to; undefined means all platforms. */
+  platform?: 'windows' | 'macos'
   /** Only for kind=configure. */
   request?: ConfigureRequest
   /** Only for kind=advanced. */
@@ -49,6 +51,7 @@ const CONFIGURE_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'clear-machine-env-proxy',
+    platform: 'windows',
     label: '清除 Windows 机器环境变量代理',
     description: '只清除 Machine 作用域的 8 个代理环境变量；执行时触发 UAC。',
     scope: 'windows.env.machine',
@@ -61,6 +64,7 @@ const CONFIGURE_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'clear-wininet-user-proxy',
+    platform: 'windows',
     label: '关闭并清除 Windows 用户代理（WinINet）',
     description: '只关闭 WinINet 用户代理并清除 ProxyServer / ProxyOverride / AutoConfigURL。',
     scope: 'windows.wininet',
@@ -73,6 +77,7 @@ const CONFIGURE_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'wsl-autoproxy-enable',
+    platform: 'windows',
     label: '启用 WSL autoProxy',
     description: '只修改 Windows 侧 .wslconfig 的 autoProxy=true；需要重启 WSL 后生效。',
     scope: 'windows.wslconfig',
@@ -85,6 +90,7 @@ const CONFIGURE_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'clear-winhttp-user-proxy',
+    platform: 'windows',
     label: '清除 WinHTTP 用户高级代理',
     description: '只清除当前用户的 WinHTTP 高级代理，不修改机器级 WinHTTP。',
     scope: 'windows.winhttp.user',
@@ -100,6 +106,7 @@ const CONFIGURE_OPERATIONS: RepairOperation[] = [
 const ADVANCED_OPERATIONS: RepairOperation[] = [
   {
     id: 'reset-winhttp-machine-proxy',
+    platform: 'windows',
     label: '重置 WinHTTP 机器代理为直连',
     description: '执行 netsh winhttp reset proxy；执行前创建机器级 WinHTTP 快照。',
     scope: 'windows.winhttp.machine',
@@ -124,6 +131,7 @@ const ADVANCED_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'reset-winsock',
+    platform: 'windows',
     label: '重置 Winsock 目录',
     description: '执行 netsh winsock reset；高风险，执行后需要重启。',
     scope: 'windows.winsock',
@@ -136,6 +144,7 @@ const ADVANCED_OPERATIONS: RepairOperation[] = [
   },
   {
     id: 'reset-ip',
+    platform: 'windows',
     label: '重置 TCP/IP 协议栈',
     description: '执行 netsh int ip reset；高风险，执行后需要重启。',
     scope: 'windows.tcpip',
@@ -148,9 +157,38 @@ const ADVANCED_OPERATIONS: RepairOperation[] = [
   },
 ]
 
+
+const MACOS_OPERATIONS: RepairOperation[] = [
+  {
+    id: 'mac-flush-dns',
+    label: '刷新 macOS DNS 缓存',
+    description: '执行 dscacheutil -flushcache 和 killall -HUP mDNSResponder，刷新 macOS DNS 解析缓存。',
+    scope: 'macos.dns.cache',
+    risk: 'low',
+    requiresAdmin: false,
+    requiresReboot: false,
+    recoverable: true,
+    kind: 'advanced',
+    advancedId: 'mac-flush-dns',
+  },
+  {
+    id: 'mac-clear-scutil-proxy',
+    label: '关闭 macOS 系统代理（scutil）',
+    description: '通过网络设置关闭 HTTP/HTTPS/SOCKS 系统代理；清除代理软件退出后的 scutil 残余。',
+    scope: 'macos.scutil',
+    risk: 'low',
+    requiresAdmin: false,
+    requiresReboot: false,
+    recoverable: true,
+    kind: 'configure',
+    request: { scope: 'macos.scutil' as never, action: 'clear' as never },
+  },
+]
+
 export const REPAIR_OPERATIONS: readonly RepairOperation[] = [
   ...CONFIGURE_OPERATIONS,
   ...ADVANCED_OPERATIONS,
+  ...MACOS_OPERATIONS,
 ]
 
 export function repairCatalog(): RepairOperation[] {
@@ -169,6 +207,7 @@ export function findRepairOperation(id: string): RepairOperation | undefined {
  */
 const RECOMMENDABLE_OPERATION_IDS: ReadonlySet<string> = new Set([
   'flush-dns',
+  'mac-flush-dns',
   'clear-user-env-proxy',
   'clear-wininet-user-proxy',
   'clear-winhttp-user-proxy',
@@ -180,6 +219,12 @@ export const RECOMMEND_CONFIDENCE_THRESHOLD = 0.85
 
 export function isRecommendableOperation(id: string): boolean {
   return RECOMMENDABLE_OPERATION_IDS.has(id)
+}
+
+/** Filter operations by the runtime platform; undefined platform means universal. */
+export function operationsForPlatform(platform: NodeJS.Platform | undefined): RepairOperation[] {
+  const os = platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : undefined
+  return REPAIR_OPERATIONS.filter(op => op.platform === undefined || op.platform === os)
 }
 
 /** Map a Phase 2 diagnosis action to one or more independent repair operations. */

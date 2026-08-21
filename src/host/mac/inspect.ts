@@ -11,8 +11,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { HostsInspection, ListenerInspection, MacInspection, MacScutilProxy, ProbeCheck } from '../model.ts'
 import { runCommand } from '../runtime/command.ts'
-import { parseHostsEntries } from '../repair/hosts.ts'
-import { proxyEnvironmentOf } from '../windows/inspect.ts'
+import { parseHostsEntries } from '../shared-env.ts'
+import { proxyEnvironmentOf } from '../shared-env.ts'
 
 export interface InspectMacOptions {
   signal?: AbortSignal

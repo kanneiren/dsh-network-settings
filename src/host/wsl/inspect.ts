@@ -15,7 +15,7 @@ import { decodeWslCommand, decodeWslUtf16 } from './encoding.ts'
 import { parseWslList } from './list.ts'
 import { parseWslConf, parseWslGlobalConfig } from './wslconfig.ts'
 import { wslVersionFromKernel } from '../network/runtime.ts'
-import { proxyEnvironmentOf } from '../windows/inspect.ts'
+import { proxyEnvironmentOf } from '../shared-env.ts'
 
 export interface InspectWslOptions {
   signal?: AbortSignal

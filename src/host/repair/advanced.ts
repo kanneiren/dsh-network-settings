@@ -67,6 +67,16 @@ const CATALOG: readonly AdvancedAction[] = [
     command: 'netsh winhttp reset proxy',
   },
   {
+    id: 'mac-flush-dns',
+    label: '刷新 macOS DNS 缓存',
+    purpose: '清除 macOS DNS 解析缓存（dscacheutil + mDNSResponder）。',
+    risk: 'low',
+    requiresAdmin: false,
+    requiresReboot: false,
+    recoverable: true,
+    command: 'dscacheutil -flushcache; killall -HUP mDNSResponder',
+  },
+  {
     id: 'reset-winsock',
     label: '重置 Winsock 目录',
     purpose: '执行 netsh winsock reset。修复 LSP/Winsock 损坏导致的连接问题；影响所有使用 Winsock 的程序。',
