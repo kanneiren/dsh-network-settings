@@ -6,7 +6,7 @@
       `src/host/probe/net.ts` to match.
 - [ ] Add a `## <tag>` section to `CHANGELOG.md` with user-facing changes
       (this section becomes the GitHub Release body).
-- [ ] Review README/README.zh-CN for current behavior.
+- [ ] Review README/README.en for current behavior.
 - [ ] Run:
       ```bash
       npm run typecheck
