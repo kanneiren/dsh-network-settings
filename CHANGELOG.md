@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.1
+
+### New check targets
+
+- GitHub Raw (`raw.githubusercontent.com`) — CDN layer for raw file access
+- GitHub Release (`objects.githubusercontent.com`) — asset download layer
+- PyPI (`pypi.org`) — Python package index
+- Hugging Face (`huggingface.co`) — model/dataset hub
+
+These cover the most common download/mirror endpoints for AI/ML
+development workflows, alongside the existing DeepSeek, OpenAI, GitHub,
+and npm Registry targets.
+
 ## v0.3.0
 
 ### macOS support (new runtime model)

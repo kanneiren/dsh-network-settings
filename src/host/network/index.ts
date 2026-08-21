@@ -36,7 +36,11 @@ export const PUBLIC_TARGETS: readonly NetworkTarget[] = [
   { id: 'deepseek', label: 'DeepSeek', host: 'api.deepseek.com', port: 443, url: 'https://api.deepseek.com', kind: 'deepseek', display: 'api.deepseek.com:443' },
   { id: 'openai', label: 'OpenAI', host: 'api.openai.com', port: 443, url: 'https://api.openai.com', kind: 'openai', display: 'api.openai.com:443' },
   { id: 'github', label: 'GitHub', host: 'github.com', port: 443, url: 'https://github.com', kind: 'github', display: 'github.com:443' },
+  { id: 'github-raw', label: 'GitHub Raw', host: 'raw.githubusercontent.com', port: 443, url: 'https://raw.githubusercontent.com', kind: 'github', display: 'raw.githubusercontent.com:443' },
+  { id: 'github-release', label: 'GitHub Release', host: 'objects.githubusercontent.com', port: 443, url: 'https://objects.githubusercontent.com', kind: 'github', display: 'objects.githubusercontent.com:443' },
   { id: 'npm-registry', label: 'npm Registry', host: 'registry.npmjs.org', port: 443, url: 'https://registry.npmjs.org', kind: 'npm-registry', display: 'registry.npmjs.org:443' },
+  { id: 'pypi', label: 'PyPI', host: 'pypi.org', port: 443, url: 'https://pypi.org', kind: 'pypi', display: 'pypi.org:443' },
+  { id: 'huggingface', label: 'Hugging Face', host: 'huggingface.co', port: 443, url: 'https://huggingface.co', kind: 'huggingface', display: 'huggingface.co:443' },
 ]
 
 export function buildTargets(modelServices: ModelServiceTarget[] | undefined, requestedId?: string): { targets: NetworkTarget[]; selected: NetworkTarget } {

@@ -28,6 +28,8 @@ export const DEFAULT_TARGETS: readonly ProbeTarget[] = [
   { id: 'openai', label: 'OpenAI', host: 'api.openai.com', port: 443, url: 'https://api.openai.com', kind: 'openai' },
   { id: 'github', label: 'GitHub', host: 'github.com', port: 443, url: 'https://github.com', kind: 'github' },
   { id: 'npm-registry', label: 'npm Registry', host: 'registry.npmjs.org', port: 443, url: 'https://registry.npmjs.org', kind: 'npm' },
+  { id: 'pypi', label: 'PyPI', host: 'pypi.org', port: 443, url: 'https://pypi.org', kind: 'pypi' },
+  { id: 'huggingface', label: 'Hugging Face', host: 'huggingface.co', port: 443, url: 'https://huggingface.co', kind: 'huggingface' },
 ]
 
 /** Read-only full inspection: static facts plus on-demand layered probes. */
