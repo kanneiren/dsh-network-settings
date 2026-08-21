@@ -103,3 +103,33 @@ describe('withDriftRecommendation gating', () => {
     assert.equal(graph.recommendedRepair?.diagnosisCode, 'STALE_B')
   })
 })
+
+describe('macOS repair integration', () => {
+  it('catalog filters Windows-only operations on darwin', async () => {
+    const { operationsForPlatform } = await import('../../src/host/repair/catalog.ts')
+    const macOps = operationsForPlatform('darwin')
+    assert.equal(macOps.some(op => op.id === 'clear-wininet-user-proxy'), false, 'wininet op must not appear on darwin')
+    assert.equal(macOps.some(op => op.id === 'reset-winsock'), false, 'winsock reset must not appear on darwin')
+    assert.equal(macOps.some(op => op.id === 'mac-flush-dns'), true, 'mac flush-dns must appear on darwin')
+    assert.equal(macOps.some(op => op.id === 'clear-dsh-process-proxy'), true, 'platform-neutral op must appear on darwin')
+  })
+
+  it('catalog keeps Windows operations on win32', async () => {
+    const { operationsForPlatform } = await import('../../src/host/repair/catalog.ts')
+    const winOps = operationsForPlatform('win32')
+    assert.equal(winOps.some(op => op.id === 'clear-wininet-user-proxy'), true)
+    assert.equal(winOps.some(op => op.id === 'mac-flush-dns'), false, 'mac op must not appear on win32')
+  })
+
+  it('MAC_SHELL_PROXY_RESIDUE maps to mac-clear-shell-proxy in recommendations', () => {
+    const ops = diagnosisActionOperations({ code: 'MAC_SHELL_PROXY_RESIDUE', scope: 'macos.shell', label: 'x', safe: true })
+    assert.deepEqual(ops.map(op => op.id), ['mac-clear-shell-proxy'])
+    assert.equal(isRecommendableOperation('mac-clear-shell-proxy'), true)
+  })
+
+  it('MAC_SCUTIL_PROXY_STALE maps to mac-clear-scutil-proxy in recommendations', () => {
+    const ops = diagnosisActionOperations({ code: 'MAC_SCUTIL_PROXY_STALE', scope: 'macos.scutil', label: 'x', safe: true })
+    assert.deepEqual(ops.map(op => op.id), ['mac-clear-scutil-proxy'])
+    assert.equal(isRecommendableOperation('mac-clear-scutil-proxy'), true)
+  })
+})

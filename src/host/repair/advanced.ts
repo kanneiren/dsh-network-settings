@@ -77,6 +77,16 @@ const CATALOG: readonly AdvancedAction[] = [
     command: 'dscacheutil -flushcache; killall -HUP mDNSResponder',
   },
   {
+    id: 'mac-clear-shell-proxy',
+    label: '清除 Shell 配置文件中的代理环境变量',
+    purpose: '从 ~/.zshenv、~/.zprofile 等启动文件中移除代理 export 行，带备份。',
+    risk: 'low',
+    requiresAdmin: false,
+    requiresReboot: false,
+    recoverable: true,
+    command: 'sed -i.bak /_PROXY=/d ~/.zshenv ~/.zprofile ~/.zshrc ~/.bash_profile ~/.profile 2>/dev/null || true',
+  },
+  {
     id: 'reset-winsock',
     label: '重置 Winsock 目录',
     purpose: '执行 netsh winsock reset。修复 LSP/Winsock 损坏导致的连接问题；影响所有使用 Winsock 的程序。',
@@ -127,6 +137,11 @@ export async function runAdvancedAction(
   if (action.requiresAdmin) {
     await runElevatedPowerShell(`& ${action.command}`)
     result = { stdout: '', stderr: '', code: 0, timedOut: false, aborted: false, durationMs: 0 }
+  } else if (process.platform === 'darwin') {
+    // macOS actions run as plain shell commands, not PowerShell
+    const shell = await import('../runtime/command.ts')
+    const r = await shell.runCommand('/bin/sh', ['-c', action.command], { signal, timeoutMs: 60_000 })
+    result = { stdout: r.stdout, stderr: r.stderr, code: r.code, timedOut: r.timedOut, aborted: r.aborted, durationMs: r.durationMs }
   } else {
     result = await runPowerShell(`& ${action.command}`, { signal, timeoutMs: 60_000 })
   }

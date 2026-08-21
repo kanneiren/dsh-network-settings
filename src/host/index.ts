@@ -11,7 +11,7 @@ import { readJson, writeJson } from './runtime/store.ts'
 import { applyConfigure, previewConfigure, type ConfigureRequest } from './configure/index.ts'
 import { listSnapshots } from './snapshot/store.ts'
 import { actionToConfigureRequest, applyRepairOperation, previewRepairOperation, rollbackLatest, rollbackScope } from './repair/index.ts'
-import { diagnosisActionOperations, isRecommendableOperation, RECOMMEND_CONFIDENCE_THRESHOLD, repairCatalog } from './repair/catalog.ts'
+import { diagnosisActionOperations, isRecommendableOperation, operationsForPlatform, RECOMMEND_CONFIDENCE_THRESHOLD, repairCatalog } from './repair/catalog.ts'
 import { advancedCatalog, recentAdvancedActionIds, runAdvancedAction } from './repair/advanced.ts'
 import { applyWslProxySource, previewWslProxySource } from './repair/wsl-proxy.ts'
 import { inspectWslProxySources, type WslProxySource } from './wsl/sources.ts'
@@ -153,7 +153,7 @@ export function apply(ctx: HostContext): void {
         case 'snapshot/list':
           return ok({ snapshots: await listSnapshots() })
         case 'repair/catalog':
-          return ok({ operations: repairCatalog() })
+          return ok({ operations: operationsForPlatform(process.platform) })
         case 'repair/recommended': {
           const body = asObject(payload)
           // Full diagnoses carry the confidence needed for the recommendation

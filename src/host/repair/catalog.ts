@@ -161,6 +161,7 @@ const ADVANCED_OPERATIONS: RepairOperation[] = [
 const MACOS_OPERATIONS: RepairOperation[] = [
   {
     id: 'mac-flush-dns',
+    platform: 'macos',
     label: '刷新 macOS DNS 缓存',
     description: '执行 dscacheutil -flushcache 和 killall -HUP mDNSResponder，刷新 macOS DNS 解析缓存。',
     scope: 'macos.dns.cache',
@@ -172,7 +173,21 @@ const MACOS_OPERATIONS: RepairOperation[] = [
     advancedId: 'mac-flush-dns',
   },
   {
+    id: 'mac-clear-shell-proxy',
+    label: '清除 Shell 配置文件中的代理环境变量',
+    description: '从 ~/.zshenv、~/.zprofile 等 Shell 启动文件中移除代理 export（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY 大小写）。清除代理软件退出后的残余配置。',
+    scope: 'macos.shell',
+    risk: 'low',
+    requiresAdmin: false,
+    requiresReboot: false,
+    recoverable: true,
+    platform: 'macos',
+    kind: 'advanced',
+    advancedId: 'mac-clear-shell-proxy',
+  },
+  {
     id: 'mac-clear-scutil-proxy',
+    platform: 'macos',
     label: '关闭 macOS 系统代理（scutil）',
     description: '通过网络设置关闭 HTTP/HTTPS/SOCKS 系统代理；清除代理软件退出后的 scutil 残余。',
     scope: 'macos.scutil',
@@ -212,6 +227,9 @@ const RECOMMENDABLE_OPERATION_IDS: ReadonlySet<string> = new Set([
   'clear-wininet-user-proxy',
   'clear-winhttp-user-proxy',
   'clear-dsh-process-proxy',
+  'mac-flush-dns',
+  'mac-clear-shell-proxy',
+  'mac-clear-scutil-proxy',
 ])
 
 /** Diagnoses below this confidence never drive a recommended button. */
@@ -261,6 +279,12 @@ export function diagnosisActionOperations(action: DiagnosisAction): RepairOperat
         findRepairOperation('clear-wininet-user-proxy'),
         findRepairOperation('clear-winhttp-user-proxy'),
       ].filter((operation): operation is RepairOperation => operation !== undefined)
+    case 'MAC_SHELL_PROXY_RESIDUE':
+    case 'inspect-mac-shell-profile':
+      return [findRepairOperation('mac-clear-shell-proxy')].filter((operation): operation is RepairOperation => operation !== undefined)
+    case 'MAC_SCUTIL_PROXY_STALE':
+    case 'macos-clear-scutil-proxy':
+      return [findRepairOperation('mac-clear-scutil-proxy')].filter((operation): operation is RepairOperation => operation !== undefined)
     case 'HOSTS_OVERRIDE':
       return []
     default:
