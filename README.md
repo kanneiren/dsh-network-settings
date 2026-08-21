@@ -5,13 +5,13 @@
 </p>
 
 <p align="center">
-  Windows / WSL network path diagnostics and safe repair for
+  Windows / WSL / macOS network path diagnostics and safe repair for
   <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"/>
-  <img src="https://img.shields.io/badge/platform-Windows%20%2B%20WSL-3572A5" alt="Platform"/>
+  <img src="https://img.shields.io/badge/platform-Windows%20%2B%20WSL%20%2B%20macOS-3572A5" alt="Platform"/>
 </p>
 
 ---

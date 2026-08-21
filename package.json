@@ -1,6 +1,6 @@
 {
   "name": "dsh-network-settings",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "DSH Network Settings: Windows / WSL network status, diagnostics and safe repair for DeepSeek Harness.",
   "type": "module",
   "license": "MIT",

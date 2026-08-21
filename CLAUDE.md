@@ -108,6 +108,7 @@ async myEndpoint() {
 - **Repair recommendations** are gated by `RECOMMEND_CONFIDENCE_THRESHOLD` (0.85) and the whitelist in `src/host/repair/catalog.ts`; admin/reboot/high-risk ops stay manual-only.
 - **Dual runtime**: when DSH runs inside WSL, the current distribution is probed via local `/bin/sh` (never an interop round-trip); Windows-side operations require interop and must degrade with a clear message.
 - **Module convention (deep modules)**: each module has one narrow public facade (see `Module facade:` headers and docs/architecture.md diagrams). Exports outside the facade are internal test seams — never import them across modules; unexport helpers that no longer have external consumers.
+- **Architecture constraints are test-enforced** (`tests/unit/architecture.test.ts`): L3 pure core must not import from effectful layers at runtime; client must not import host collectors; diagnosis must not spawn; UI platform checks concentrated via `platformOf()`.
 - **Default check target** is DeepSeek (`defaultTarget` in `src/host/network/index.ts`).
 - **UI conventions**: type scale 16/14/13/12 (nothing below 12px), 4px spacing grid, container queries on `.section` for responsiveness, `MetaBadges` for metadata rows.
 
