@@ -43,5 +43,9 @@ npm publish
 
 ## After publishing
 
+- [ ] Verify the GitHub Release has no unnecessary assets — the npm
+      registry is the install source; a Release tarball is redundant unless
+      there is a specific offline-installation requirement.
+
 - [ ] Submit the plugin to the Awesome DSH Plugins list.
 - [ ] Verify the release page renders the changelog section correctly.
