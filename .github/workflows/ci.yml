@@ -31,4 +31,3 @@ jobs:
       - name: Fault-lab proxy scenarios (platform-neutral env injection)
         run: node --experimental-strip-types scripts/fault-lab.ts S1 S5 S6
         if: runner.os == 'macOS'
-# verify workflow scope 2026-08-21T16:11:39+08:00
