@@ -144,9 +144,43 @@ export interface WslInspection {
   distributions: WslDistribution[]
 }
 
+export interface MacScutilProxy {
+  httpEnabled: boolean
+  httpsEnabled: boolean
+  socksEnabled: boolean
+  pacEnabled: boolean
+  httpHost?: string
+  httpPort?: number
+  httpsHost?: string
+  httpsPort?: number
+  socksHost?: string
+  socksPort?: number
+  pacUrl?: string
+  exceptions?: string[]
+}
+
+export interface MacInspection {
+  os: { caption: string; version: string; build: string }
+  network: {
+    interfaces: Array<{ name: string; device: string; kind: 'ethernet' | 'wi-fi' | 'vpn' | 'other' }>
+    gateway?: string
+    gatewayInterface?: string
+  }
+  proxy: {
+    scutil: MacScutilProxy
+    endpoints: ProxyEndpoint[]
+  }
+  dns: { nameservers: string[] }
+  hosts: { overrides: { ip: string; hostnames: string[]; raw: string }[] }
+  listeners: Array<{ address: string; port: number; pid: number; processName?: string }>
+  environment?: EnvironmentScopeSnapshot
+  rawErrors: Array<{ status: string; errorCode?: string; humanMessage: string; source: string; timestamp: string }>
+}
+
 export interface NetworkInspection {
   runtime: { platform: string; version: string; dshHome?: string }
   windows?: WindowsInspection
+  macos?: MacInspection
   wsl?: WslInspection
   dsh: EnvironmentScopeSnapshot
   modelServices: ModelServiceTarget[]

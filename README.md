@@ -18,8 +18,8 @@
 
 ## Highlights
 
-- **Two runtime models only** — automatically detects `WINDOWS_NATIVE` or
-  `WSL_DISTRIBUTION`; no manual Windows/WSL mode switch.
+- **Three runtime models** — automatically detects `WINDOWS_NATIVE`,
+  `WSL_DISTRIBUTION`, or `MACOS_NATIVE`.
 - **DSH path graph** — shows the actual DSH network path, DNS side branch and
   first failing edge; a TUN/VPN adapter is chained with the physical uplink
   NIC and the real gateway behind it.
@@ -137,7 +137,8 @@ Click [Copy network report]
 ## Support
 
 - DSH: `@deepseek-ai/dsh >= 0.1.0-rc.6` (Web profile)
-- Platform: Windows 10/11 with WSL
+- Platform: Windows 10/11 with WSL; macOS (CI-verified, real-machine
+  validation pending)
 - All network checks are local and read-only unless you explicitly confirm a
   change.
 

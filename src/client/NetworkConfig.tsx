@@ -74,6 +74,8 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
   }
 
   const windows = data.windows ?? emptyWindows()
+  const mac = data.macos
+  const isMac = mac !== undefined
   const wininet = windows.proxy.wininet
   const winhttp = windows.proxy.winhttp
   const env = windows.environment.scopes
@@ -91,63 +93,95 @@ export function NetworkConfig({ service, inspection, diagnosis, graph, t }: Netw
 
       <DisclosureRow
         icon={<IconGlobeOutline14 size={16} />}
-        title={t('configGroupProxy')}
+        title={isMac ? t('macSystemProxy') : t('configGroupProxy')}
         open={open.proxy}
         expandable
         expandOnRowClick
         onToggle={() => { toggle('proxy') }}
       >
         <div className={css.detailList}>
-          <div className={css.configCard}>
-            <div className={css.detailName}>{t('configWinInet')}</div>
-            <div className={css.detailMeta}>{t('statusLabel')}：{hasInspection ? (wininet.enabled ? t('currentEnabled') : t('currentDisabled')) : t('unknownLabel')}</div>
-            {wininet.enabled && wininet.proxyServer !== undefined ? <div className={css.detailMeta}>{t('currentValue')}：{wininet.proxyServer}</div> : null}
-            <div className={css.detailMeta}>{t('configSource')}：{hasInspection ? t('configSourceWinInet') : t('notTestedLabel')}</div>
-            <Button variant="outline" size="sm" onClick={() => { void service.openWindowsProxySettings() }}>{t('openWindowsProxySettings')}</Button>
-          </div>
+          {isMac ? (
+            <>
+              <div className={css.configCard}>
+                <div className={css.detailName}>{t('macSystemProxy')}</div>
+                <div className={css.detailMeta}>{t('statusLabel')}：{mac.proxy.scutil.httpEnabled || mac.proxy.scutil.httpsEnabled ? t('macSystemProxyOn') : t('macSystemProxyOff')}</div>
+                {(mac.proxy.scutil.httpEnabled || mac.proxy.scutil.httpsEnabled) && (mac.proxy.scutil.httpsHost ?? mac.proxy.scutil.httpHost) !== undefined ? (
+                  <div className={css.detailMeta}>{t('currentValue')}：{mac.proxy.scutil.httpsHost ?? mac.proxy.scutil.httpHost}:{mac.proxy.scutil.httpsPort ?? mac.proxy.scutil.httpPort}</div>
+                ) : null}
+                {mac.proxy.scutil.pacEnabled && mac.proxy.scutil.pacUrl !== undefined ? <div className={css.detailMeta}>{t('macPacUrl')}：{mac.proxy.scutil.pacUrl}</div> : null}
+              </div>
+              <div className={css.configCard}>
+                <div className={css.detailName}>{t('macShellEnv')}</div>
+                <div className={css.detailMeta}>{t('macShellEnvHint')}</div>
+                {(() => {
+                  const entries = envEntries(mac.environment)
+                  if (entries.length === 0) return <div className={css.detailMeta}>{t('envProxyNotSet')}</div>
+                  return entries.map(([name, value]) => (
+                    <div key={name} className={css.detailRow}>
+                      <span className={css.detailName}>{name}</span>
+                      <span className={css.detailMeta}>{value}</span>
+                    </div>
+                  ))
+                })()}
+              </div>
+              <div className={css.configCard}>
+                <div className={css.detailName}>{t('macDnsServers')}</div>
+                {mac.dns.nameservers.length === 0 ? <div className={css.detailMeta}>{t('unknownLabel')}</div> : null}
+                {mac.dns.nameservers.map(ns => <div key={ns} className={css.detailMeta}>{ns}</div>)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={css.configCard}>
+                <div className={css.detailName}>{t('configWinInet')}</div>
+                <div className={css.detailMeta}>{t('statusLabel')}：{hasInspection ? (wininet.enabled ? t('currentEnabled') : t('currentDisabled')) : t('unknownLabel')}</div>
+                {wininet.enabled && wininet.proxyServer !== undefined ? <div className={css.detailMeta}>{t('currentValue')}：{wininet.proxyServer}</div> : null}
+                <div className={css.detailMeta}>{t('configSource')}：{hasInspection ? t('configSourceWinInet') : t('notTestedLabel')}</div>
+                <Button variant="outline" size="sm" onClick={() => { void service.openWindowsProxySettings() }}>{t('openWindowsProxySettings')}</Button>
+              </div>
 
-          <div className={css.configCard}>
-            <div className={css.detailName}>{t('configEnvVars')}</div>
-            {(() => {
-              const entries = hasInspection ? envEntries(env['user']) : []
-              return (
-                <div className={css.detailRow}>
-                  <span className={css.detailName}>{t('envScopeUser')}</span>
-                  {!hasInspection ? <span className={css.detailMeta}>{t('notTestedLabel')}</span> : null}
-                  {hasInspection && entries.length === 0 ? <span className={css.detailMeta}>{t('envProxyNotSet')}</span> : null}
-                  {entries.map(([name, value]) => (
-                    <span key={name} className={css.detailMeta}>{name}={value}</span>
-                  ))}
-                </div>
-              )
-            })()}
-            {(() => {
-              // Machine scope only appears when set: an empty row would be
-              // noise on the vast majority of machines.
-              const entries = hasInspection ? envEntries(env['machine']) : []
-              if (entries.length === 0) return null
-              return (
-                <div className={css.detailRow}>
-                  <span className={css.detailName}>{t('envScopeMachine')}</span>
-                  {entries.map(([name, value]) => (
-                    <span key={name} className={css.detailMeta}>{name}={value}</span>
-                  ))}
-                </div>
-              )
-            })()}
-            {staleDshProxy ? (
-              <>
-                <div className={css.detailMeta}>{t('staleProxyHint')}</div>
-                <Button variant="outline" size="sm" onClick={() => { void prepareOperation('clear-dsh-process-proxy') }}>{t('deleteStaleProxyVar')}</Button>
-              </>
-            ) : null}
-          </div>
+              <div className={css.configCard}>
+                <div className={css.detailName}>{t('configEnvVars')}</div>
+                {(() => {
+                  const entries = hasInspection ? envEntries(env['user']) : []
+                  return (
+                    <div className={css.detailRow}>
+                      <span className={css.detailName}>{t('envScopeUser')}</span>
+                      {!hasInspection ? <span className={css.detailMeta}>{t('notTestedLabel')}</span> : null}
+                      {hasInspection && entries.length === 0 ? <span className={css.detailMeta}>{t('envProxyNotSet')}</span> : null}
+                      {entries.map(([name, value]) => (
+                        <span key={name} className={css.detailMeta}>{name}={value}</span>
+                      ))}
+                    </div>
+                  )
+                })()}
+                {(() => {
+                  const entries = hasInspection ? envEntries(env['machine']) : []
+                  if (entries.length === 0) return null
+                  return (
+                    <div className={css.detailRow}>
+                      <span className={css.detailName}>{t('envScopeMachine')}</span>
+                      {entries.map(([name, value]) => (
+                        <span key={name} className={css.detailMeta}>{name}={value}</span>
+                      ))}
+                    </div>
+                  )
+                })()}
+                {staleDshProxy ? (
+                  <>
+                    <div className={css.detailMeta}>{t('staleProxyHint')}</div>
+                    <Button variant="outline" size="sm" onClick={() => { void prepareOperation('clear-dsh-process-proxy') }}>{t('deleteStaleProxyVar')}</Button>
+                  </>
+                ) : null}
+              </div>
 
-          <div className={css.configCard}>
-            <div className={css.detailName}>{t('configPac')}</div>
-            <div className={css.detailMeta}>{hasInspection ? pacSummary(wininet, t) : t('unknownLabel')}</div>
-            {wininet.autoConfigUrl !== undefined ? <div className={css.detailMeta}>{wininet.autoConfigUrl}</div> : null}
-          </div>
+              <div className={css.configCard}>
+                <div className={css.detailName}>{t('configPac')}</div>
+                <div className={css.detailMeta}>{hasInspection ? pacSummary(wininet, t) : t('unknownLabel')}</div>
+                {wininet.autoConfigUrl !== undefined ? <div className={css.detailMeta}>{wininet.autoConfigUrl}</div> : null}
+              </div>
+            </>
+          )}
         </div>
       </DisclosureRow>
 

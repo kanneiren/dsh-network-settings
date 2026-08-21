@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.3.0
+
+### macOS support (new runtime model)
+
+- `MACOS_NATIVE` runtime detected on darwin; facts collected via `scutil`,
+  `networksetup`, `route`, `lsof` and `sw_vers` — no PowerShell or wsl.exe
+- Shell-profile proxy residue detection (~/.zshenv, ~/.zprofile, …) plus
+  the scutil system proxy: `MAC_SHELL_PROXY_RESIDUE` (error) and
+  `MAC_SCUTIL_PROXY_STALE` (warning) fire on the macOS "closed the proxy
+  app" classic
+- macOS path graph (direct and proxy) reuses the shared vocabulary; DNS
+  branch shows resolved addresses
+- macOS configuration panel in the UI: system proxy (scutil), shell-profile
+  env vars, DNS resolvers
+- CI: macos-latest in the test matrix with real macOS smoke, fault-lab
+  S1/S5/S6 on darwin, and fixture capture from the runner (recorded
+  command outputs committed as `tests/fixtures/mac/`)
+- Architecture: `NetworkInspection` container neutralized — `windows`
+  optional, `dsh` and `modelServices` promoted to top level (they belong
+  to DSH, not to any host OS); `windowsOf()` accessor keeps all Windows
+  consumers unchanged
+
 ## v0.2.1
 
 ### Fixes

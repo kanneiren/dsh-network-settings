@@ -36,17 +36,19 @@ flowchart TB
   INS["inspect.ts · inspectNetwork()<br/>ONE hard deadline (45–60s)"]
   WIN["windows/inspect.ts<br/>one PowerShell sweep"]
   WSL["wsl/inspect.ts<br/>wsl.exe discovery + local /bin/sh facts"]
+  MAC["mac/inspect.ts<br/>scutil · networksetup · route · lsof<br/>+ shell-profile residue scan"]
   PRB["probe/* · DNS → TCP → TLS → HTTP<br/>node-side + in-distro, layer timeouts"]
   INSPECTION["NetworkInspection<br/>(serializable data contract)"]
   GRAPH["network/build-{windows,wsl}.ts<br/>+ network/shared.ts vocabulary"]
   DRIFT["network/drift.ts<br/>5 drift rules"]
   RULES["diagnose/rules.ts<br/>9 deterministic rules"]
-  GATE["repair/catalog.ts<br/>confidence ≥ 0.85 + whitelist"]
+  GATE["repair/catalog.ts<br/>confidence ≥ 0.85 + whitelist<br/>+ platform filter"]
   REPORT["BuiltNetworkReport<br/>graph · diagnosis · summary · targets"]
 
   RT -->|"DetectedRuntime"| INS
   INS --> WIN --> INSPECTION
   INS --> WSL --> INSPECTION
+  INS --> MAC --> INSPECTION
   INS --> PRB --> INSPECTION
   INSPECTION --> GRAPH
   GRAPH -->|"NetworkPathGraph"| DRIFT
@@ -70,6 +72,7 @@ flowchart TD
   subgraph L1["L1 · collectors (platform facts, effectful)"]
     WINI["windows/inspect"]:::col
     WSLI["wsl/*"]:::col
+    MACI["mac/inspect"]:::col
     PROXY["proxy/*"]:::col
   end
   subgraph L2["L2 · probes (effectful, time-bounded)"]
@@ -93,7 +96,7 @@ flowchart TD
   NETIDX["network/index · report assembly"]:::entry
 
   ENTRY --> INSPECT & NETIDX & CONF & REPM & CATM
-  INSPECT --> WINI & WSLI & PROXY & PNET & PWSL & NETIDX
+  INSPECT --> WINI & WSLI & MACI & PROXY & PNET & PWSL & NETIDX
   NETIDX --> SHARED --> BUILD --> DRIFTM
   NETIDX --> RULESM
   DRIFTM & RULESM --> CATM
@@ -124,10 +127,10 @@ flowchart TB
   K -->|"microsoft + WSL_DISTRO_NAME"| WD["WSL_DISTRIBUTION<br/>(facts: local /bin/sh + interop)"]
   K -->|"container cgroup"| UNS["UNSUPPORTED_RUNTIME"]
   K -->|"plain linux"| UNS
-  PLAT -->|darwin| MAC["UNSUPPORTED today<br/>(MACOS_NATIVE planned)"]
+  PLAT -->|darwin| MAC["MACOS_NATIVE<br/>(facts: scutil + shell profiles)"]
   WN --> BW["build-windows.ts"]
   WD --> BWS["build-wsl.ts"]
-  MAC -.->|planned| BWM["build-macos.ts"]
+  MAC --> BWM["build-mac.ts"]
 ```
 
 ### 5. Repair recommendation gating and lifecycle
@@ -155,7 +158,7 @@ flowchart LR
   FL["scripts/fault-lab.ts<br/>in-process env injection<br/>(interrupt-safe, zero residue)"]
   PIPE["real pipeline<br/>inspect → graph → diagnosis → gating"]
   A["assert diagnosis codes<br/>+ egress mode + recommended ops"]
-  UT["tests/unit/*<br/>recorded fixtures"]
+  UT["tests/unit/*<br/>recorded fixtures<br/>(Windows · WSL · macOS)"]
   PARSERS["exported parsers<br/>(documented test seams)"]
   FL --> PIPE --> A
   UT --> PARSERS
@@ -202,6 +205,7 @@ the host RPC channel with `authority: loopback`.
 | File/Area | Responsibility |
 |---|---|
 | `windows/inspect.ts` | PowerShell inspection: adapters, routes, WinINet, WinHTTP, env, listeners, Hosts, gateway ICMP/neighbor |
+| `mac/inspect.ts` | macOS facts: scutil proxy, networksetup adapters, route, lsof listeners, shell-profile residue scan |
 | `wsl/*` | `wsl.exe` list parsing, `.wslconfig`, `/etc/wsl.conf`, distribution facts |
 | `probe/net.ts` | DNS/TCP/TLS/HTTP probes, repeated sampling for stability mode |
 | `probe/probe.ts` | DIRECT/PROXY orchestration and first-failure layer mapping |
@@ -224,7 +228,7 @@ the host RPC channel with `authority: loopback`.
 | `service.ts` | Typed RPC client over the DSH Connection channel |
 | `contract.ts` | Client-side wire types |
 
-## Two runtime models
+## Three runtime models
 
 ```text
 WINDOWS_NATIVE
@@ -235,6 +239,9 @@ WSL_DISTRIBUTION
   DSH → Distribution → WSL Network (NAT/Mirrored/…) → Windows Host
        → [Proxy] → Adapter (TUN/VPN or physical) → [Physical uplink]
        → Gateway → Internet → Target
+
+MACOS_NATIVE
+  DSH → macOS → [Proxy] → Adapter (en0/utun) → Gateway → Internet → Target
 ```
 
 Distribution identity and WSL network layer are separate concepts. NAT is an

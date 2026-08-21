@@ -8,7 +8,7 @@ DSH 网络设置：为 DeepSeek Harness 提供 Windows / WSL 网络链路诊断�
 
 ## 特性
 
-- 自动检测 **Windows 原生** 与 **WSL 发行版** 两种运行模型。
+- 自动检测 **Windows 原生**、**WSL 发行版** 与 **macOS** 三种运行模型。
 - 展示当前 **DSH 进程** 的真实网络路径、DNS 侧支和第一个失败点；TUN/VPN 虚拟网卡后面自动补出物理出口与真实网关。
 - 识别 **配置漂移**：配置不同但网络正常时只提示，不警告。
 - 支持 **单次检测** 与 **稳定性检测**，默认目标 DeepSeek、可随时切换；每层探测与整次检测都有超时上限，网络故障也不会长时间无响应。
@@ -97,7 +97,7 @@ dsh plugin --profile web add dsh-network-settings
 ## 支持
 
 - DSH：`@deepseek-ai/dsh >= 0.1.0-rc.6`（Web profile）
-- 平台：Windows 10/11 + WSL
+- 平台：Windows 10/11 + WSL；macOS（CI 已验证，真机验收待做）
 - 所有检测默认只读，只有用户明确确认后才修改配置
 
 ## 隐私
