@@ -7,6 +7,9 @@
  * so it works with WSL interop disabled.
  */
 import { existsSync, readFileSync } from 'node:fs'
+// readFileSync is deliberate here: detectRuntime runs once at inspection start
+// on small /proc files (<4KB); the async round-trip would add latency to
+// every check for zero benefit.
 import type { WslInspection } from '../model.ts'
 import type {
   DetectedRuntime, MacNativeRuntime, PathConfidence, UnsupportedRuntime, WindowsNativeRuntime,

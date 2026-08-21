@@ -39,31 +39,35 @@ export interface DnsProbeResult {
   family: 4 | 6
 }
 
+/** Extract unique addresses from allSettled DNS results. */
+function dnsAddresses(results: Array<PromiseSettledResult<string[]>>): { addresses: string[]; family: 4 | 6; firstError: unknown } {
+  const addresses: string[] = []
+  let family: 4 | 6 = 4
+  for (const [index, settled] of results.entries()) {
+    if (settled.status === 'fulfilled') {
+      addresses.push(...settled.value)
+      if (addresses.length > 0 && index === 0) family = 4
+    }
+  }
+  const firstError = results[0]?.status === 'rejected' ? results[0].reason
+    : results[1]?.status === 'rejected' ? results[1].reason : undefined
+  return { addresses, family, firstError }
+}
+
 export async function probeDns(host: string, options: ProbeTimerOptions = {}): Promise<ProbeCheck & DnsProbeResult> {
   const timeoutMs = options.timeoutMs ?? 4_000
   const { signal, cancel } = combinedSignal(options.signal, timeoutMs)
-  // dns.resolve* accepts no signal; a dedicated Resolver can be cancelled so
-  // the timeout actually stops c-ares instead of waiting for its own retries.
   const resolver = new dns.Resolver()
   const stop = (): void => { resolver.cancel() }
   if (signal.aborted) stop()
   else signal.addEventListener('abort', stop, { once: true })
   const started = performance.now()
   try {
-    const [v4, v6] = await Promise.allSettled([
+    const { addresses, family, firstError } = dnsAddresses(await Promise.allSettled([
       resolver.resolve4(host),
       resolver.resolve6(host),
-    ])
-    const addresses: string[] = []
-    let family: 4 | 6 = 4
-    for (const [index, settled] of [v4, v6].entries()) {
-      if (settled.status === 'fulfilled') {
-        addresses.push(...settled.value)
-        if (addresses.length > 0 && index === 0) family = 4
-      }
-    }
+    ]))
     if (addresses.length === 0) {
-      const firstError = v4.status === 'rejected' ? v4.reason : v6.status === 'rejected' ? v6.reason : undefined
       return {
         ...check('dns', `无法解析 ${host}`, 'node:dns', { host }),
         status: 'error',

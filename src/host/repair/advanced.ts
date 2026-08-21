@@ -167,7 +167,7 @@ export async function runAdvancedAction(
     const { saveSnapshot } = await import('../snapshot/store.ts')
     await saveSnapshot({
       reason: `macOS 修复: ${action.label}`,
-      scope: `macos.${action.id.replace('mac-clear-', '').replace('mac-', '')}` as never,
+      scope: `macos.${action.id.replace('mac-clear-', '').replace('mac-', '')}` as `macos.${string}`,
       before: { command: action.command, timestamp: new Date().toISOString() },
       reversible: true,
     })
