@@ -195,8 +195,8 @@ const MACOS_OPERATIONS: RepairOperation[] = [
     requiresAdmin: false,
     requiresReboot: false,
     recoverable: true,
-    kind: 'configure',
-    request: { scope: 'macos.scutil' as never, action: 'clear' as never },
+    kind: 'advanced',
+    advancedId: 'mac-clear-scutil-proxy',
   },
 ]
 

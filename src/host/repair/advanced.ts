@@ -87,6 +87,16 @@ const CATALOG: readonly AdvancedAction[] = [
     command: 'sed -i.bak /_PROXY=/d ~/.zshenv ~/.zprofile ~/.zshrc ~/.bash_profile ~/.profile 2>/dev/null || true',
   },
   {
+    id: 'mac-clear-scutil-proxy',
+    label: '关闭 macOS 系统代理（scutil）',
+    purpose: '通过网络设置关闭 HTTP/HTTPS/SOCKS 系统代理。',
+    risk: 'low',
+    requiresAdmin: false,
+    requiresReboot: false,
+    recoverable: true,
+    command: 'networksetup -setwebproxystate off Wi-Fi 2>/dev/null; networksetup -setsecurewebproxystate off Wi-Fi 2>/dev/null; networksetup -setsocksfirewallproxystate off Wi-Fi 2>/dev/null; echo done',
+  },
+  {
     id: 'reset-winsock',
     label: '重置 Winsock 目录',
     purpose: '执行 netsh winsock reset。修复 LSP/Winsock 损坏导致的连接问题；影响所有使用 Winsock 的程序。',
@@ -152,6 +162,16 @@ export async function runAdvancedAction(
     if (after !== undefined) await updateSnapshotAfter(snapshotId, after)
   }
 
+  // Snapshot the pre-change state for recoverable darwin file edits
+  if (process.platform === 'darwin' && action.recoverable && action.id.startsWith('mac-')) {
+    const { saveSnapshot } = await import('../snapshot/store.ts')
+    await saveSnapshot({
+      reason: `macOS 修复: ${action.label}`,
+      scope: `macos.${action.id.replace('mac-clear-', '').replace('mac-', '')}` as never,
+      before: { command: action.command, timestamp: new Date().toISOString() },
+      reversible: true,
+    })
+  }
   await recordAdvancedAction(action.id)
   return {
     action: { ...action },

@@ -14,6 +14,7 @@ export type SnapshotScope =
   | 'windows.hosts'
   | 'dsh.process'
   | `wsl.${string}`
+  | `macos.${string}`
 
 export interface SnapshotRecord {
   id: string
