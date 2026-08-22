@@ -3,6 +3,15 @@
 This guide is for coding agents and maintainers working on
 `dsh-network-settings`.
 
+## Documentation policy
+
+`docs/` holds living documentation only (architecture, diagnostics,
+first aid, path graph, this guide, release checklist). Development
+process notes — phase plans, progress snapshots, research dumps,
+strategy memos — belong in `.research/` (gitignored), never in `docs/`:
+stale process notes mislead agents that explore the repository, and git
+history already preserves everything.
+
 ## Commands
 
 ```bash
